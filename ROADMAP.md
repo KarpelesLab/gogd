@@ -63,16 +63,16 @@ Decoders and encoders via stdlib + `golang.org/x/image`.
 - [x] `imageantialias` (flag only; actual AA not yet implemented)
 - [x] `imagesetclip`, `imagegetclip`
 
-## M4 — Copy / transform / scale `[~]`
+## M4 — Copy / transform / scale `[x]`
 
 - [x] `imagecopy`, `imagecopymerge`, `imagecopymergegray` → `image/draw`
 - [x] `imagecopyresized`, `imagecopyresampled`, `imagescale` → `golang.org/x/image/draw`
 - [x] `imagerotate`, `imageflip`
 - [x] `imagecrop`
-- [ ] `imagecropauto`
-- [ ] `imageaffine`, `imageaffinematrixget`, `imageaffinematrixconcat`
-- [ ] `imagegetinterpolation`, `imagesetinterpolation`
-- [ ] `imageresolution`
+- [x] `imagecropauto` — modes: DEFAULT, TRANSPARENT, BLACK, WHITE, SIDES, THRESHOLD
+- [x] `imageaffine`, `imageaffinematrixget`, `imageaffinematrixconcat`
+- [x] `imagegetinterpolation`, `imagesetinterpolation`
+- [x] `imageresolution` (plus a Go-style `ImageGetResolution` getter)
 
 ## M5 — Filters & color operations `[~]`
 

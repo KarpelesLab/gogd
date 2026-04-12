@@ -122,14 +122,37 @@ func fromStdImage(src image.Image) *Image {
 	src = normalizeOrigin(src)
 	switch m := src.(type) {
 	case *image.NRGBA:
-		return &Image{nrgba: m, alphaBlending: true, transparent: ColorNone, thickness: 1}
+		return newImageFromNRGBA(m)
 	case *image.Paletted:
-		return &Image{pal: m, transparent: ColorNone, thickness: 1}
+		return newImageFromPaletted(m)
 	}
 	b := src.Bounds()
 	nrgba := image.NewNRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
 	draw.Draw(nrgba, nrgba.Bounds(), src, b.Min, draw.Src)
-	return &Image{nrgba: nrgba, alphaBlending: true, transparent: ColorNone, thickness: 1}
+	return newImageFromNRGBA(nrgba)
+}
+
+func newImageFromNRGBA(m *image.NRGBA) *Image {
+	return &Image{
+		nrgba:         m,
+		alphaBlending: true,
+		transparent:   ColorNone,
+		thickness:     1,
+		interpolation: ImgBilinearFixed,
+		resolutionX:   96,
+		resolutionY:   96,
+	}
+}
+
+func newImageFromPaletted(m *image.Paletted) *Image {
+	return &Image{
+		pal:           m,
+		transparent:   ColorNone,
+		thickness:     1,
+		interpolation: ImgBilinearFixed,
+		resolutionX:   96,
+		resolutionY:   96,
+	}
 }
 
 // normalizeOrigin returns src translated so that its bounds start at (0, 0).

@@ -35,6 +35,9 @@ type Image struct {
 	antialias     bool
 	transparent   Color
 	thickness     int
+	interpolation int
+	resolutionX   int
+	resolutionY   int
 	clip          image.Rectangle // zero => whole image
 }
 
@@ -53,6 +56,9 @@ func ImageCreateTrueColor(width, height int) *Image {
 		alphaBlending: true,
 		transparent:   ColorNone,
 		thickness:     1,
+		interpolation: ImgBilinearFixed,
+		resolutionX:   96,
+		resolutionY:   96,
 	}
 }
 
@@ -65,9 +71,12 @@ func ImageCreate(width, height int) *Image {
 	}
 	m := image.NewPaletted(image.Rect(0, 0, width, height), color.Palette{})
 	return &Image{
-		pal:         m,
-		transparent: ColorNone,
-		thickness:   1,
+		pal:           m,
+		transparent:   ColorNone,
+		thickness:     1,
+		interpolation: ImgBilinearFixed,
+		resolutionX:   96,
+		resolutionY:   96,
 	}
 }
 
