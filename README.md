@@ -56,4 +56,4 @@ gogd targets the modern PHP 8+ gd surface. Functions removed upstream
 
 ## License
 
-To be decided.
+MIT — see [LICENSE](LICENSE). Copyright © 2026 Karpelès Lab Inc.
