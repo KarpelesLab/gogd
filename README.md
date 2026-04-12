@@ -1,0 +1,58 @@
+# gogd
+
+A native Go implementation of the image operations exposed by PHP's
+[gd extension](https://www.php.net/manual/en/ref.image.php), built on top of
+Go's standard `image`, `image/color`, and `image/draw` packages.
+
+**No cgo. No libgd.** Just Go.
+
+## Status
+
+Early development. See [ROADMAP.md](ROADMAP.md) for the milestone plan and
+per-function status. Currently implementing **M1 — Foundation** (image type,
+color allocation, pixel access).
+
+## Install
+
+```sh
+go get github.com/KarpelesLab/gogd
+```
+
+## Example
+
+```go
+package main
+
+import "github.com/KarpelesLab/gogd"
+
+func main() {
+    img := gogd.ImageCreateTrueColor(100, 100)
+    red := gogd.ImageColorAllocate(img, 255, 0, 0)
+    gogd.ImageSetPixel(img, 50, 50, red)
+    // Encoders (PNG, JPEG, GIF) land in M2.
+}
+```
+
+## Design
+
+- `gogd.Image` implements `image.Image`, so it can be passed to anything in
+  Go's image ecosystem (`image/draw`, `image/png`, third-party resamplers,
+  etc.) without adapters.
+- Truecolor images are backed by `*image.NRGBA`; palette images by
+  `*image.Paletted`.
+- gd's 7-bit alpha channel (0 = opaque, 127 = transparent) is translated
+  to and from Go's 8-bit alpha on the boundary — you pass gd values and
+  the stdlib sees conventional NRGBA.
+- Function names mirror PHP gd (`ImageCreateTrueColor`,
+  `ImageColorAllocate`, `ImageSetPixel`, …) so porting PHP code is
+  mechanical. Idiomatic Go shortcuts (`img.Width()`, `img.Height()`,
+  `img.IsTrueColor()`) are also provided.
+
+## Scope
+
+gogd targets the modern PHP 8+ gd surface. Functions removed upstream
+(`image2wbmp`, `jpeg2wbmp`, `png2wbmp`) are not implemented.
+
+## License
+
+To be decided.
