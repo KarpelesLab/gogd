@@ -9,8 +9,9 @@ Go's standard `image`, `image/color`, and `image/draw` packages.
 ## Status
 
 Early development. See [ROADMAP.md](ROADMAP.md) for the milestone plan and
-per-function status. Currently implementing **M1 — Foundation** (image type,
-color allocation, pixel access).
+per-function status. Through **M3 — Drawing primitives**: image creation,
+I/O (PNG/JPEG/GIF/BMP/WebP decode), color allocation, pixel access, lines,
+rectangles, polygons, ellipses, arcs, flood fill, thickness and clipping.
 
 ## Install
 

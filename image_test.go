@@ -176,13 +176,13 @@ func TestImageSatisfiesImageImage(t *testing.T) {
 func TestGDAlphaRoundtrip(t *testing.T) {
 	for _, a := range []int{0, 1, 32, 63, 64, 100, 127} {
 		back := stdAlphaToGD(gdAlphaToStdAlpha(a))
-		if abs(back-a) > 1 {
+		if testAbs(back-a) > 1 {
 			t.Errorf("roundtrip alpha %d -> %d", a, back)
 		}
 	}
 }
 
-func abs(v int) int {
+func testAbs(v int) int {
 	if v < 0 {
 		return -v
 	}

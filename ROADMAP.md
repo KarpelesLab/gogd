@@ -50,18 +50,18 @@ Decoders and encoders via stdlib + `golang.org/x/image`.
 - [x] `getimagesize` / `getimagesizefromstring`
 - [ ] `imageinterlace`
 
-## M3 — Drawing primitives
+## M3 — Drawing primitives `[~]`
 
-- [ ] `imageline`, `imagedashedline`
-- [ ] `imagerectangle`, `imagefilledrectangle`
-- [ ] `imagepolygon`, `imageopenpolygon`, `imagefilledpolygon`
-- [ ] `imageellipse`, `imagefilledellipse`
-- [ ] `imagearc`, `imagefilledarc`
-- [ ] `imagefill`, `imagefilltoborder`
-- [ ] `imagesetthickness`
+- [x] `imageline`, `imagedashedline`
+- [x] `imagerectangle`, `imagefilledrectangle`
+- [x] `imagepolygon`, `imageopenpolygon`, `imagefilledpolygon`
+- [x] `imageellipse`, `imagefilledellipse`
+- [x] `imagearc`, `imagefilledarc`
+- [x] `imagefill`, `imagefilltoborder`
+- [x] `imagesetthickness`
 - [ ] `imagesetstyle`, `imagesetbrush`, `imagesettile`
-- [ ] `imageantialias`
-- [ ] `imagesetclip`, `imagegetclip`
+- [x] `imageantialias` (flag only; actual AA not yet implemented)
+- [x] `imagesetclip`, `imagegetclip`
 
 ## M4 — Copy / transform / scale
 

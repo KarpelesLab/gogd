@@ -32,8 +32,10 @@ type Image struct {
 
 	alphaBlending bool
 	saveAlpha     bool
+	antialias     bool
 	transparent   Color
 	thickness     int
+	clip          image.Rectangle // zero => whole image
 }
 
 // ImageCreateTrueColor returns a new truecolor Image of the given size.
