@@ -7,23 +7,23 @@ func GDInfo() map[string]any {
 		"GD Version":                       "gogd dev",
 		"FreeType Support":                 false,
 		"FreeType Linkage":                 "",
-		"GIF Read Support":                 false,
-		"GIF Create Support":               false,
-		"JPEG Support":                     false,
-		"PNG Support":                      false,
+		"GIF Read Support":                 true,
+		"GIF Create Support":               true,
+		"JPEG Support":                     true,
+		"PNG Support":                      true,
 		"WBMP Support":                     false,
 		"XPM Support":                      false,
 		"XBM Support":                      false,
-		"WebP Support":                     false,
+		"WebP Support":                     true, // decode only for now
 		"AVIF Support":                     false,
-		"BMP Support":                      false,
+		"BMP Support":                      true,
 		"TGA Read Support":                 false,
 		"JIS-mapped Japanese Font Support": false,
 	}
 }
 
-// ImageTypes returns the bitfield of image formats gogd can read or write.
-// Bits will be set as format support lands in later milestones.
+// ImageTypes returns the bitfield of image formats gogd can read or
+// write. Matches PHP's imagetypes() return value.
 func ImageTypes() int {
-	return 0
+	return ImgGIF | ImgJPEG | ImgPNG | ImgBMP | ImgWEBP
 }

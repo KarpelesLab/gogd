@@ -7,7 +7,7 @@ Legend: `[x]` done · `[ ]` not started · `[~]` in progress
 
 ---
 
-## M1 — Foundation `[~]`
+## M1 — Foundation `[x]`
 
 Image type, truecolor vs palette, color allocation, direct pixel access.
 
@@ -35,19 +35,19 @@ Image type, truecolor vs palette, color allocation, direct pixel access.
 - [ ] `imagecolormatch`
 - [ ] `imagecolorset`
 
-## M2 — I/O
+## M2 — I/O `[~]`
 
 Decoders and encoders via stdlib + `golang.org/x/image`.
 
-- [ ] `imagepng` / `imagecreatefrompng` → `image/png`
-- [ ] `imagejpeg` / `imagecreatefromjpeg` → `image/jpeg`
-- [ ] `imagegif` / `imagecreatefromgif` → `image/gif`
-- [ ] `imagebmp` / `imagecreatefrombmp` → `golang.org/x/image/bmp`
-- [ ] `imagewebp` / `imagecreatefromwebp` → `golang.org/x/image/webp` (enc custom)
-- [ ] `imagecreatefromstring`
-- [ ] `image_type_to_extension`
-- [ ] `image_type_to_mime_type`
-- [ ] `getimagesize` / `getimagesizefromstring`
+- [x] `imagepng` / `imagecreatefrompng` → `image/png`
+- [x] `imagejpeg` / `imagecreatefromjpeg` → `image/jpeg`
+- [x] `imagegif` / `imagecreatefromgif` → `image/gif`
+- [x] `imagebmp` / `imagecreatefrombmp` → `golang.org/x/image/bmp`
+- [~] `imagecreatefromwebp` → `golang.org/x/image/webp` — decode only; encoding still TODO (no pure-Go encoder in x/image)
+- [x] `imagecreatefromstring`
+- [x] `image_type_to_extension`
+- [x] `image_type_to_mime_type`
+- [x] `getimagesize` / `getimagesizefromstring`
 - [ ] `imageinterlace`
 
 ## M3 — Drawing primitives
