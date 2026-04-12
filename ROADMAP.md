@@ -74,15 +74,23 @@ Decoders and encoders via stdlib + `golang.org/x/image`.
 - [ ] `imagegetinterpolation`, `imagesetinterpolation`
 - [ ] `imageresolution`
 
-## M5 — Filters & color operations
+## M5 — Filters & color operations `[~]`
 
-- [ ] `imagefilter` (all `IMG_FILTER_*` modes)
-- [ ] `imageconvolution`
-- [ ] `imagegammacorrect`
-- [ ] `imagelayereffect`
-- [ ] `imagepalettecopy`
-- [ ] `imagepalettetotruecolor`
-- [ ] `imagetruecolortopalette` (median-cut)
+- [~] `imagefilter` — NEGATE, GRAYSCALE, BRIGHTNESS, CONTRAST, COLORIZE,
+  EDGEDETECT, EMBOSS, GAUSSIAN_BLUR, MEAN_REMOVAL, SMOOTH, PIXELATE.
+  SELECTIVE_BLUR and SCATTER not yet implemented.
+- [x] `imageconvolution` — 3×3 convolution matrix with divisor + offset
+- [x] `imagegammacorrect`
+- [x] `imagelayereffect` — REPLACE/ALPHABLEND/NORMAL supported; OVERLAY/
+  MULTIPLY accepted but not yet distinct
+- [x] `imagecolorset`, `imagecolorsetalpha`
+- [x] `imagepalettecopy`
+- [x] `imagepalettetotruecolor`
+- [x] `imagetruecolortopalette` — simple histogram quantizer (exact match
+  when unique colours fit; top-N by frequency otherwise). Median-cut upgrade
+  pending.
+- [ ] `imagecolormatch`
+- [ ] `imagecolorclosesthwb`
 
 ## M6 — Text
 
