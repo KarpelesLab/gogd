@@ -92,11 +92,12 @@ Decoders and encoders via stdlib + `golang.org/x/image`.
 - [ ] `imagecolormatch`
 - [ ] `imagecolorclosesthwb`
 
-## M6 — Text
+## M6 — Text `[~]`
 
-- [ ] `imagestring`, `imagestringup`, `imagechar`, `imagecharup`
-- [ ] `imagefontwidth`, `imagefontheight`, `imageloadfont` — via `golang.org/x/image/font/basicfont`
-- [ ] `imagettftext`, `imagettfbbox`, `imagefttext`, `imageftbbox` — via `golang.org/x/image/font/opentype`
+- [x] `imagestring`, `imagestringup`, `imagechar`, `imagecharup` (all fontIDs map to `basicfont.Face7x13` for now)
+- [x] `imagefontwidth`, `imagefontheight` (return PHP's reported dims for font IDs 1–5)
+- [~] `imageloadfont` stub — gd's `.gd` font-file format not yet parsed
+- [x] `imagettftext`, `imagettfbbox`, `imagefttext`, `imageftbbox` via `golang.org/x/image/font/opentype`; non-zero angle renders via an off-screen rotate-and-paste
 
 ## M7 — Niche / low-priority
 
