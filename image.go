@@ -3,6 +3,7 @@ package gogd
 import (
 	"image"
 	"image/color"
+	"image/draw"
 )
 
 const (
@@ -27,8 +28,9 @@ const ColorNone Color = -1
 // one. Image implements the [image.Image] interface, so it can be handed
 // directly to functions in image, image/draw and similar packages.
 type Image struct {
-	nrgba *image.NRGBA    // non-nil iff truecolor
-	pal   *image.Paletted // non-nil iff palette
+	nrgba   *image.NRGBA    // non-nil iff truecolor
+	pal     *image.Paletted // non-nil iff palette
+	generic draw.Image      // non-nil when wrapping an arbitrary stdlib image
 
 	alphaBlending bool
 	saveAlpha     bool
@@ -91,13 +93,22 @@ func ImageDestroy(img *Image) bool {
 	return true
 }
 
-// ImageIsTrueColor reports whether img is a truecolor image.
-func ImageIsTrueColor(img *Image) bool {
-	return img != nil && img.nrgba != nil
+// ImageIsTrueColor reports whether img is a truecolor image. Accepts
+// any [image.Image]; stdlib palette types report false, everything else
+// (including gogd's truecolor mode) reports true.
+func ImageIsTrueColor(img image.Image) bool {
+	if img == nil {
+		return false
+	}
+	if g, ok := img.(*Image); ok {
+		return g != nil && g.nrgba != nil
+	}
+	_, isPal := img.(*image.Paletted)
+	return !isPal
 }
 
 // ImageSX returns the width of img, or 0 if img is nil.
-func ImageSX(img *Image) int {
+func ImageSX(img image.Image) int {
 	if img == nil {
 		return 0
 	}
@@ -105,7 +116,7 @@ func ImageSX(img *Image) int {
 }
 
 // ImageSY returns the height of img, or 0 if img is nil.
-func ImageSY(img *Image) int {
+func ImageSY(img image.Image) int {
 	if img == nil {
 		return 0
 	}
@@ -132,13 +143,21 @@ func (img *Image) Bounds() image.Rectangle {
 	if img.pal != nil {
 		return img.pal.Bounds()
 	}
+	if img.generic != nil {
+		return img.generic.Bounds()
+	}
 	return image.Rectangle{}
 }
 
 // ColorModel implements [image.Image].
 func (img *Image) ColorModel() color.Model {
-	if img != nil && img.pal != nil {
-		return img.pal.ColorModel()
+	if img != nil {
+		if img.pal != nil {
+			return img.pal.ColorModel()
+		}
+		if img.generic != nil {
+			return img.generic.ColorModel()
+		}
 	}
 	return color.NRGBAModel
 }
@@ -154,8 +173,67 @@ func (img *Image) At(x, y int) color.Color {
 	if img.pal != nil {
 		return img.pal.At(x, y)
 	}
+	if img.generic != nil {
+		return img.generic.At(x, y)
+	}
 	return color.Transparent
 }
 
-// compile-time check that *Image satisfies image.Image.
-var _ image.Image = (*Image)(nil)
+// Set implements [draw.Image]. Setting a pixel goes through the
+// underlying truecolor or palette buffer without honouring gd state
+// (alpha blending, clipping, transparent index); callers that want
+// those semantics should use [ImageSetPixel].
+func (img *Image) Set(x, y int, c color.Color) {
+	if img == nil {
+		return
+	}
+	if img.nrgba != nil {
+		img.nrgba.Set(x, y, c)
+		return
+	}
+	if img.pal != nil {
+		img.pal.Set(x, y, c)
+		return
+	}
+	if img.generic != nil {
+		img.generic.Set(x, y, c)
+	}
+}
+
+// asImage returns img as a *Image. If img is already a *Image it is
+// returned unchanged (state preserved). *image.NRGBA and *image.Paletted
+// are wrapped with default gd state; any other [draw.Image] is wrapped
+// via a generic path that uses the interface's Set/At methods. Read-only
+// images that aren't a draw.Image (e.g. *image.YCbCr from a jpeg
+// decoder) return nil — callers should convert first.
+func asImage(img image.Image) *Image {
+	if img == nil {
+		return nil
+	}
+	if g, ok := img.(*Image); ok {
+		return g
+	}
+	switch m := img.(type) {
+	case *image.NRGBA:
+		return newImageFromNRGBA(m)
+	case *image.Paletted:
+		return newImageFromPaletted(m)
+	}
+	if d, ok := img.(draw.Image); ok {
+		return &Image{
+			generic:       d,
+			alphaBlending: true,
+			transparent:   ColorNone,
+			thickness:     1,
+			interpolation: ImgBilinearFixed,
+			resolutionX:   96,
+			resolutionY:   96,
+		}
+	}
+	return nil
+}
+
+// compile-time check that *Image satisfies image.Image and draw.Image.
+var (
+	_ image.Image = (*Image)(nil)
+)

@@ -36,9 +36,16 @@ func main() {
 
 ## Design
 
-- `gogd.Image` implements `image.Image`, so it can be passed to anything in
-  Go's image ecosystem (`image/draw`, `image/png`, third-party resamplers,
-  etc.) without adapters.
+- `gogd.Image` implements `image.Image` and `draw.Image`, so it can be
+  passed to anything in Go's image ecosystem (`image/draw`, `image/png`,
+  third-party resamplers, etc.) without adapters.
+- The reverse is also true: gogd functions accept stdlib images
+  directly. `ImageSetPixel`, `ImageLine`, `ImageFilledRectangle`,
+  `ImageFilter`, `ImageCopy`, `ImageRotate`, `ImagePNG`, etc. take
+  `image.Image` / `draw.Image`, so you can call gogd operations on a
+  `*image.NRGBA`, `*image.RGBA`, or `*image.Paletted` without wrapping.
+  gd state (alpha blending, clip, thickness) defaults sensibly for
+  non-gogd images; use `*gogd.Image` when you need those controls.
 - Truecolor images are backed by `*image.NRGBA`; palette images by
   `*image.Paletted`.
 - gd's 7-bit alpha channel (0 = opaque, 127 = transparent) is translated

@@ -17,8 +17,8 @@ import (
 // errNilImage is returned by encoders when passed a nil *Image.
 var errNilImage = errors.New("gogd: nil image")
 
-// ImagePNG writes img to w as PNG.
-func ImagePNG(img *Image, w io.Writer) error {
+// ImagePNG writes img to w as PNG. Accepts any [image.Image].
+func ImagePNG(img image.Image, w io.Writer) error {
 	if img == nil {
 		return errNilImage
 	}
@@ -27,7 +27,8 @@ func ImagePNG(img *Image, w io.Writer) error {
 
 // ImageJPEG writes img to w as JPEG. quality is 0..100; pass -1 to use the
 // default (75). Higher values produce larger, better-looking files.
-func ImageJPEG(img *Image, w io.Writer, quality int) error {
+// Accepts any [image.Image].
+func ImageJPEG(img image.Image, w io.Writer, quality int) error {
 	if img == nil {
 		return errNilImage
 	}
@@ -42,16 +43,16 @@ func ImageJPEG(img *Image, w io.Writer, quality int) error {
 }
 
 // ImageGIF writes img to w as GIF. Truecolor images are quantised to a
-// 256-entry palette by the stdlib encoder.
-func ImageGIF(img *Image, w io.Writer) error {
+// 256-entry palette by the stdlib encoder. Accepts any [image.Image].
+func ImageGIF(img image.Image, w io.Writer) error {
 	if img == nil {
 		return errNilImage
 	}
 	return gif.Encode(w, img, nil)
 }
 
-// ImageBMP writes img to w as BMP.
-func ImageBMP(img *Image, w io.Writer) error {
+// ImageBMP writes img to w as BMP. Accepts any [image.Image].
+func ImageBMP(img image.Image, w io.Writer) error {
 	if img == nil {
 		return errNilImage
 	}

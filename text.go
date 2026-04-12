@@ -3,6 +3,7 @@ package gogd
 import (
 	"fmt"
 	"image"
+	"image/draw"
 	"math"
 	"os"
 
@@ -52,25 +53,26 @@ func ImageLoadFont(path string) int {
 }
 
 // ImageString draws a horizontal string at (x, y). (x, y) is the top-left
-// corner of the first character.
-func ImageString(img *Image, fontID, x, y int, s string, c Color) bool {
-	if img == nil || img.nrgba == nil {
+// corner of the first character. Accepts any [draw.Image].
+func ImageString(dst draw.Image, fontID, x, y int, s string, c Color) bool {
+	if dst == nil {
 		return false
 	}
-	return drawBitmapString(img, basicfont.Face7x13, x, y, s, c)
+	return drawBitmapString(dst, basicfont.Face7x13, x, y, s, c)
 }
 
 // ImageChar draws a single character at (x, y).
-func ImageChar(img *Image, fontID, x, y int, ch string, c Color) bool {
+func ImageChar(dst draw.Image, fontID, x, y int, ch string, c Color) bool {
 	if ch == "" {
 		return false
 	}
-	return ImageString(img, fontID, x, y, ch[:1], c)
+	return ImageString(dst, fontID, x, y, ch[:1], c)
 }
 
 // ImageStringUp draws a string rotated 90° counter-clockwise at (x, y).
-func ImageStringUp(img *Image, fontID, x, y int, s string, c Color) bool {
-	if img == nil || img.nrgba == nil || s == "" {
+// Accepts any [draw.Image].
+func ImageStringUp(dst draw.Image, fontID, x, y int, s string, c Color) bool {
+	if dst == nil || s == "" {
 		return false
 	}
 	fontH := ImageFontHeight(fontID)
@@ -88,16 +90,16 @@ func ImageStringUp(img *Image, fontID, x, y int, s string, c Color) bool {
 	ImageFilledRectangle(tmp, 0, 0, w-1, h-1, transparent)
 	drawBitmapString(tmp, face, 0, 0, s, c)
 	rotated := ImageRotate(tmp, 90, transparent)
-	ImageCopy(img, rotated, x, y-rotated.Height()+1, 0, 0, rotated.Width(), rotated.Height())
+	ImageCopy(dst, rotated, x, y-rotated.Height()+1, 0, 0, rotated.Width(), rotated.Height())
 	return true
 }
 
 // ImageCharUp draws a single character rotated 90° counter-clockwise.
-func ImageCharUp(img *Image, fontID, x, y int, ch string, c Color) bool {
+func ImageCharUp(dst draw.Image, fontID, x, y int, ch string, c Color) bool {
 	if ch == "" {
 		return false
 	}
-	return ImageStringUp(img, fontID, x, y, ch[:1], c)
+	return ImageStringUp(dst, fontID, x, y, ch[:1], c)
 }
 
 // --- TTF text ---
@@ -105,8 +107,8 @@ func ImageCharUp(img *Image, fontID, x, y int, ch string, c Color) bool {
 // ImageTTFText draws TTF text at the given baseline position and returns
 // the bounding box of the drawn text as 8 integers: the (x, y) pairs for
 // the lower-left, lower-right, upper-right, and upper-left corners, in
-// that order (matching PHP imagettftext).
-func ImageTTFText(img *Image, size, angle float64, x, y int, c Color, fontPath, text string) ([8]int, error) {
+// that order (matching PHP imagettftext). Accepts any [draw.Image].
+func ImageTTFText(img draw.Image, size, angle float64, x, y int, c Color, fontPath, text string) ([8]int, error) {
 	face, err := loadTTFFace(fontPath, size)
 	if err != nil {
 		return [8]int{}, err
@@ -127,7 +129,7 @@ func ImageTTFBBox(size, angle float64, fontPath, text string) ([8]int, error) {
 }
 
 // ImageFTText is an alias for [ImageTTFText] (FreeType shim).
-func ImageFTText(img *Image, size, angle float64, x, y int, c Color, fontPath, text string) ([8]int, error) {
+func ImageFTText(img draw.Image, size, angle float64, x, y int, c Color, fontPath, text string) ([8]int, error) {
 	return ImageTTFText(img, size, angle, x, y, c, fontPath, text)
 }
 
@@ -138,10 +140,14 @@ func ImageFTBBox(size, angle float64, fontPath, text string) ([8]int, error) {
 
 // --- internals ---
 
-func drawBitmapString(img *Image, face font.Face, x, y int, s string, c Color) bool {
+func drawBitmapString(dst draw.Image, face font.Face, x, y int, s string, c Color) bool {
 	ascent := face.Metrics().Ascent.Ceil()
+	target := dst
+	if g, ok := dst.(*Image); ok && g != nil && g.nrgba != nil {
+		target = g.nrgba
+	}
 	d := &font.Drawer{
-		Dst:  img.nrgba,
+		Dst:  target,
 		Src:  image.NewUniform(gdColorToNRGBA(c)),
 		Face: face,
 		Dot: fixed.Point26_6{
@@ -169,7 +175,7 @@ func loadTTFFace(path string, size float64) (font.Face, error) {
 	})
 }
 
-func drawOrMeasureTTF(img *Image, face font.Face, angle float64, x, y int, c Color, text string, draw bool) ([8]int, error) {
+func drawOrMeasureTTF(img draw.Image, face font.Face, angle float64, x, y int, c Color, text string, drawText bool) ([8]int, error) {
 	b, _ := font.BoundString(face, text)
 	bXmin, bYmin := b.Min.X.Floor(), b.Min.Y.Floor()
 	bXmax, bYmax := b.Max.X.Ceil(), b.Max.Y.Ceil()
@@ -200,10 +206,14 @@ func drawOrMeasureTTF(img *Image, face font.Face, angle float64, x, y int, c Col
 		out[2*i+1] = y + int(math.Round(p[1]))
 	}
 
-	if draw && img != nil && img.nrgba != nil {
+	if drawText && img != nil {
+		target := img
+		if g, ok := img.(*Image); ok && g != nil && g.nrgba != nil {
+			target = g.nrgba
+		}
 		if angle == 0 {
 			d := &font.Drawer{
-				Dst:  img.nrgba,
+				Dst:  target,
 				Src:  image.NewUniform(gdColorToNRGBA(c)),
 				Face: face,
 				Dot:  fixed.P(x, y),
@@ -223,13 +233,13 @@ func drawOrMeasureTTF(img *Image, face font.Face, angle float64, x, y int, c Col
 			ImageAlphaBlending(tmp, false)
 			transparent := ImageColorAllocateAlpha(tmp, 0, 0, 0, AlphaTransparent)
 			ImageFilledRectangle(tmp, 0, 0, w-1, h-1, transparent)
-			d := &font.Drawer{
+			dd := &font.Drawer{
 				Dst:  tmp.nrgba,
 				Src:  image.NewUniform(gdColorToNRGBA(c)),
 				Face: face,
 				Dot:  fixed.P(-bXmin, -bYmin),
 			}
-			d.DrawString(text)
+			dd.DrawString(text)
 			rotated := ImageRotate(tmp, angle, transparent)
 			// Align the lower-left corner of the rotated bbox back to (x+bXmin, y+bYmax).
 			rad := angle * math.Pi / 180

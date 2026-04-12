@@ -36,8 +36,11 @@ const (
 )
 
 // ImageFilter applies a filter to img. Additional args are interpreted
-// per filter, matching PHP imagefilter semantics.
-func ImageFilter(img *Image, filter int, args ...int) bool {
+// per filter, matching PHP imagefilter semantics. Accepts any
+// [draw.Image]; kernel-based filters require a direct NRGBA buffer
+// (our truecolor mode or *image.NRGBA).
+func ImageFilter(dst draw.Image, filter int, args ...int) bool {
+	img := asImage(dst)
 	if img == nil {
 		return false
 	}
@@ -142,14 +145,18 @@ func ImageFilter(img *Image, filter int, args ...int) bool {
 }
 
 // ImageConvolution applies a 3×3 convolution matrix to img. The result
-// of each pixel is divided by divisor and then offset is added.
-func ImageConvolution(img *Image, matrix [3][3]float64, divisor, offset float64) bool {
+// of each pixel is divided by divisor and then offset is added. Accepts
+// any [draw.Image].
+func ImageConvolution(dst draw.Image, matrix [3][3]float64, divisor, offset float64) bool {
+	img := asImage(dst)
 	return applyKernel(img, matrix, divisor, offset)
 }
 
 // ImageGammaCorrect applies a gamma transform. The correction factor is
 // inputGamma / outputGamma; values > 1 darken, values < 1 brighten.
-func ImageGammaCorrect(img *Image, inputGamma, outputGamma float64) bool {
+// Accepts any [draw.Image].
+func ImageGammaCorrect(dst draw.Image, inputGamma, outputGamma float64) bool {
+	img := asImage(dst)
 	if img == nil || inputGamma <= 0 || outputGamma <= 0 {
 		return false
 	}

@@ -1,6 +1,9 @@
 package gogd
 
-import "image/color"
+import (
+	"image"
+	"image/color"
+)
 
 // ImageColorAllocate allocates a color on img. For truecolor images it
 // simply packs the RGB components into a gd color and returns it. For
@@ -54,19 +57,33 @@ func ImageColorsTotal(img *Image) int {
 // ImageColorsForIndex returns the (r, g, b, a) components of a color. For
 // palette images c is a palette index; for truecolor images c is the
 // packed gd color previously obtained from one of the allocation/read
-// functions. Alpha is returned in the gd range 0..127.
-func ImageColorsForIndex(img *Image, c Color) (r, g, b, a int) {
+// functions. Alpha is returned in the gd range 0..127. Accepts any
+// [image.Image].
+func ImageColorsForIndex(img image.Image, c Color) (r, g, b, a int) {
 	if img == nil {
 		return 0, 0, 0, 0
 	}
-	if img.nrgba != nil {
-		return unpackGDColor(c)
+	if g, ok := img.(*Image); ok {
+		if g == nil {
+			return 0, 0, 0, 0
+		}
+		if g.nrgba != nil {
+			return unpackGDColor(c)
+		}
+		if g.pal == nil || int(c) < 0 || int(c) >= len(g.pal.Palette) {
+			return 0, 0, 0, 0
+		}
+		nr, ng, nb, na := nrgbaComponents(g.pal.Palette[int(c)])
+		return int(nr), int(ng), int(nb), stdAlphaToGD(na)
 	}
-	if img.pal == nil || int(c) < 0 || int(c) >= len(img.pal.Palette) {
-		return 0, 0, 0, 0
+	if p, ok := img.(*image.Paletted); ok {
+		if int(c) < 0 || int(c) >= len(p.Palette) {
+			return 0, 0, 0, 0
+		}
+		nr, ng, nb, na := nrgbaComponents(p.Palette[int(c)])
+		return int(nr), int(ng), int(nb), stdAlphaToGD(na)
 	}
-	nr, ng, nb, na := nrgbaComponents(img.pal.Palette[int(c)])
-	return int(nr), int(ng), int(nb), stdAlphaToGD(na)
+	return unpackGDColor(c)
 }
 
 // ImageColorExact returns the palette index that matches (r, g, b) exactly,

@@ -12,9 +12,13 @@ import (
 // --- copy ---
 
 // ImageCopy copies a srcW×srcH rectangle from src at (srcX, srcY) to dst
-// at (dstX, dstY).
-func ImageCopy(dst, src *Image, dstX, dstY, srcX, srcY, srcW, srcH int) bool {
-	if dst == nil || src == nil {
+// at (dstX, dstY). Accepts any [draw.Image] / [image.Image].
+func ImageCopy(dstImg draw.Image, srcImg image.Image, dstX, dstY, srcX, srcY, srcW, srcH int) bool {
+	if dstImg == nil || srcImg == nil {
+		return false
+	}
+	dst := asImage(dstImg)
+	if dst == nil {
 		return false
 	}
 	dr := image.Rect(dstX, dstY, dstX+srcW, dstY+srcH)
@@ -24,13 +28,13 @@ func ImageCopy(dst, src *Image, dstX, dstY, srcX, srcY, srcW, srcH int) bool {
 		if !dst.alphaBlending {
 			op = draw.Src
 		}
-		draw.Draw(dst.nrgba, dr, src, sp, op)
+		draw.Draw(dst.nrgba, dr, srcImg, sp, op)
 		return true
 	}
 	if dst.pal != nil {
 		for y := 0; y < srcH; y++ {
 			for x := 0; x < srcW; x++ {
-				c := src.At(srcX+x, srcY+y)
+				c := srcImg.At(srcX+x, srcY+y)
 				idx := dst.pal.Palette.Index(c)
 				px, py := dstX+x, dstY+y
 				if (image.Point{X: px, Y: py}).In(dst.Bounds()) {
@@ -40,17 +44,29 @@ func ImageCopy(dst, src *Image, dstX, dstY, srcX, srcY, srcW, srcH int) bool {
 		}
 		return true
 	}
+	if dst.generic != nil {
+		op := draw.Over
+		if !dst.alphaBlending {
+			op = draw.Src
+		}
+		draw.Draw(dst.generic, dr, srcImg, sp, op)
+		return true
+	}
 	return false
 }
 
 // ImageCopyMerge copies a rectangle from src to dst with a merge
 // percentage (0 = no change, 100 = full src copy).
-func ImageCopyMerge(dst, src *Image, dstX, dstY, srcX, srcY, srcW, srcH, pct int) bool {
-	if dst == nil || src == nil || pct <= 0 {
+func ImageCopyMerge(dstImg draw.Image, srcImg image.Image, dstX, dstY, srcX, srcY, srcW, srcH, pct int) bool {
+	if dstImg == nil || srcImg == nil || pct <= 0 {
+		return false
+	}
+	dst := asImage(dstImg)
+	if dst == nil {
 		return false
 	}
 	if pct >= 100 {
-		return ImageCopy(dst, src, dstX, dstY, srcX, srcY, srcW, srcH)
+		return ImageCopy(dstImg, srcImg, dstX, dstY, srcX, srcY, srcW, srcH)
 	}
 	for y := 0; y < srcH; y++ {
 		for x := 0; x < srcW; x++ {
@@ -58,7 +74,7 @@ func ImageCopyMerge(dst, src *Image, dstX, dstY, srcX, srcY, srcW, srcH, pct int
 			if !(image.Point{X: dx, Y: dy}).In(dst.Bounds()) {
 				continue
 			}
-			sc := nrgbaOf(src.At(srcX+x, srcY+y))
+			sc := nrgbaOf(srcImg.At(srcX+x, srcY+y))
 			dc := nrgbaOf(dst.At(dx, dy))
 			rc := color.NRGBA{
 				R: uint8((int(sc.R)*pct + int(dc.R)*(100-pct)) / 100),
@@ -74,8 +90,12 @@ func ImageCopyMerge(dst, src *Image, dstX, dstY, srcX, srcY, srcW, srcH, pct int
 
 // ImageCopyMergeGray is like ImageCopyMerge but converts each
 // destination pixel to gray before blending, preserving the source hue.
-func ImageCopyMergeGray(dst, src *Image, dstX, dstY, srcX, srcY, srcW, srcH, pct int) bool {
-	if dst == nil || src == nil || pct <= 0 {
+func ImageCopyMergeGray(dstImg draw.Image, srcImg image.Image, dstX, dstY, srcX, srcY, srcW, srcH, pct int) bool {
+	if dstImg == nil || srcImg == nil || pct <= 0 {
+		return false
+	}
+	dst := asImage(dstImg)
+	if dst == nil {
 		return false
 	}
 	for y := 0; y < srcH; y++ {
@@ -84,7 +104,7 @@ func ImageCopyMergeGray(dst, src *Image, dstX, dstY, srcX, srcY, srcW, srcH, pct
 			if !(image.Point{X: dx, Y: dy}).In(dst.Bounds()) {
 				continue
 			}
-			sc := nrgbaOf(src.At(srcX+x, srcY+y))
+			sc := nrgbaOf(srcImg.At(srcX+x, srcY+y))
 			dc := nrgbaOf(dst.At(dx, dy))
 			gray := (int(dc.R) + int(dc.G) + int(dc.B)) / 3
 			rc := color.NRGBA{
@@ -103,33 +123,33 @@ func ImageCopyMergeGray(dst, src *Image, dstX, dstY, srcX, srcY, srcW, srcH, pct
 
 // ImageCopyResized copies and resizes a rectangle from src to dst using
 // nearest-neighbour interpolation.
-func ImageCopyResized(dst, src *Image, dstX, dstY, srcX, srcY, dstW, dstH, srcW, srcH int) bool {
-	if dst == nil || src == nil {
+func ImageCopyResized(dstImg draw.Image, srcImg image.Image, dstX, dstY, srcX, srcY, dstW, dstH, srcW, srcH int) bool {
+	if dstImg == nil || srcImg == nil {
 		return false
 	}
 	dr := image.Rect(dstX, dstY, dstX+dstW, dstY+dstH)
 	sr := image.Rect(srcX, srcY, srcX+srcW, srcY+srcH)
-	dstImg := drawImage(dst)
-	if dstImg == nil {
+	dstDraw := drawTarget(dstImg)
+	if dstDraw == nil {
 		return false
 	}
-	xdraw.NearestNeighbor.Scale(dstImg, dr, underlyingImage(src), sr, xdraw.Over, nil)
+	xdraw.NearestNeighbor.Scale(dstDraw, dr, underlyingImage(srcImg), sr, xdraw.Over, nil)
 	return true
 }
 
 // ImageCopyResampled copies and resizes a rectangle from src to dst using
 // high-quality bicubic interpolation.
-func ImageCopyResampled(dst, src *Image, dstX, dstY, srcX, srcY, dstW, dstH, srcW, srcH int) bool {
-	if dst == nil || src == nil {
+func ImageCopyResampled(dstImg draw.Image, srcImg image.Image, dstX, dstY, srcX, srcY, dstW, dstH, srcW, srcH int) bool {
+	if dstImg == nil || srcImg == nil {
 		return false
 	}
 	dr := image.Rect(dstX, dstY, dstX+dstW, dstY+dstH)
 	sr := image.Rect(srcX, srcY, srcX+srcW, srcY+srcH)
-	dstImg := drawImage(dst)
-	if dstImg == nil {
+	dstDraw := drawTarget(dstImg)
+	if dstDraw == nil {
 		return false
 	}
-	xdraw.CatmullRom.Scale(dstImg, dr, underlyingImage(src), sr, xdraw.Over, nil)
+	xdraw.CatmullRom.Scale(dstDraw, dr, underlyingImage(srcImg), sr, xdraw.Over, nil)
 	return true
 }
 
@@ -143,12 +163,12 @@ const (
 
 // ImageScale returns a new truecolor image scaled to newW × newH. Pass
 // -1 for newH to preserve the aspect ratio. mode selects the
-// interpolation algorithm.
-func ImageScale(img *Image, newW, newH, mode int) *Image {
-	if img == nil || newW <= 0 {
+// interpolation algorithm. Accepts any [image.Image].
+func ImageScale(src image.Image, newW, newH, mode int) *Image {
+	if src == nil || newW <= 0 {
 		return nil
 	}
-	b := img.Bounds()
+	b := src.Bounds()
 	if newH <= 0 {
 		newH = b.Dy() * newW / b.Dx()
 		if newH <= 0 {
@@ -165,7 +185,7 @@ func ImageScale(img *Image, newW, newH, mode int) *Image {
 	default:
 		interp = xdraw.NearestNeighbor
 	}
-	interp.Scale(dst.nrgba, dst.Bounds(), underlyingImage(img), b, xdraw.Over, nil)
+	interp.Scale(dst.nrgba, dst.Bounds(), underlyingImage(src), b, xdraw.Over, nil)
 	return dst
 }
 
@@ -178,8 +198,10 @@ const (
 	ImgFlipBoth       = 3
 )
 
-// ImageFlip flips img in-place according to mode.
-func ImageFlip(img *Image, mode int) bool {
+// ImageFlip flips img in-place according to mode. Accepts any
+// [draw.Image].
+func ImageFlip(dst draw.Image, mode int) bool {
+	img := asImage(dst)
 	if img == nil {
 		return false
 	}
@@ -232,23 +254,48 @@ func ImageFlip(img *Image, mode int) bool {
 		}
 		return true
 	}
+	if img.generic != nil {
+		m := img.generic
+		if mode&ImgFlipHorizontal != 0 {
+			for y := 0; y < h; y++ {
+				for x := 0; x < w/2; x++ {
+					rx := w - 1 - x
+					l, r := m.At(x, y), m.At(rx, y)
+					m.Set(x, y, r)
+					m.Set(rx, y, l)
+				}
+			}
+		}
+		if mode&ImgFlipVertical != 0 {
+			for y := 0; y < h/2; y++ {
+				ry := h - 1 - y
+				for x := 0; x < w; x++ {
+					top, bot := m.At(x, y), m.At(x, ry)
+					m.Set(x, y, bot)
+					m.Set(x, ry, top)
+				}
+			}
+		}
+		return true
+	}
 	return false
 }
 
 // --- crop ---
 
 // ImageCrop returns a new truecolor image cropped to the given rectangle.
-func ImageCrop(img *Image, rect image.Rectangle) *Image {
-	if img == nil {
+// Accepts any [image.Image].
+func ImageCrop(src image.Image, rect image.Rectangle) *Image {
+	if src == nil {
 		return nil
 	}
-	rect = rect.Intersect(img.Bounds())
+	rect = rect.Intersect(src.Bounds())
 	if rect.Empty() {
 		return nil
 	}
 	dst := ImageCreateTrueColor(rect.Dx(), rect.Dy())
 	ImageAlphaBlending(dst, false)
-	ImageCopy(dst, img, 0, 0, rect.Min.X, rect.Min.Y, rect.Dx(), rect.Dy())
+	ImageCopy(dst, src, 0, 0, rect.Min.X, rect.Min.Y, rect.Dx(), rect.Dy())
 	ImageAlphaBlending(dst, true)
 	return dst
 }
@@ -257,12 +304,12 @@ func ImageCrop(img *Image, rect image.Rectangle) *Image {
 
 // ImageRotate returns a new truecolor image rotated counter-clockwise by
 // angle degrees, with exposed background filled with bgColor. Sampling
-// uses bilinear interpolation.
-func ImageRotate(img *Image, angle float64, bgColor Color) *Image {
-	if img == nil {
+// uses bilinear interpolation. Accepts any [image.Image].
+func ImageRotate(src image.Image, angle float64, bgColor Color) *Image {
+	if src == nil {
 		return nil
 	}
-	b := img.Bounds()
+	b := src.Bounds()
 	w, h := b.Dx(), b.Dy()
 	wf, hf := float64(w), float64(h)
 
@@ -307,7 +354,7 @@ func ImageRotate(img *Image, angle float64, bgColor Color) *Image {
 			if sxi < 0 || sxi >= w || syi < 0 || syi >= h {
 				continue
 			}
-			dst.nrgba.SetNRGBA(dx, dy, nrgbaOf(img.At(sxi, syi)))
+			dst.nrgba.SetNRGBA(dx, dy, nrgbaOf(src.At(sxi+b.Min.X, syi+b.Min.Y)))
 		}
 	}
 	ImageAlphaBlending(dst, true)
@@ -323,31 +370,58 @@ func nrgbaOf(c color.Color) color.NRGBA {
 func setNRGBAPixel(img *Image, x, y int, c color.NRGBA) {
 	if img.nrgba != nil {
 		img.nrgba.SetNRGBA(x, y, c)
-	} else if img.pal != nil {
+		return
+	}
+	if img.pal != nil {
 		idx := img.pal.Palette.Index(c)
 		img.pal.SetColorIndex(x, y, uint8(idx))
+		return
+	}
+	if img.generic != nil {
+		img.generic.Set(x, y, c)
 	}
 }
 
-func drawImage(img *Image) xdraw.Image {
-	if img.nrgba != nil {
-		return img.nrgba
+// drawTarget returns a [xdraw.Image] suitable for xdraw's fast paths.
+// For our wrapper we unwrap to the underlying NRGBA/Paletted; for any
+// other draw.Image we pass it through.
+func drawTarget(dstImg draw.Image) xdraw.Image {
+	if g, ok := dstImg.(*Image); ok {
+		if g == nil {
+			return nil
+		}
+		if g.nrgba != nil {
+			return g.nrgba
+		}
+		if g.pal != nil {
+			return g.pal
+		}
+		if g.generic != nil {
+			return g.generic
+		}
+		return nil
 	}
-	if img.pal != nil {
-		return img.pal
-	}
-	return nil
+	return dstImg
 }
 
-// underlyingImage returns the concrete stdlib image backing img. xdraw's
-// fast paths dispatch on specific image types, so passing the wrapper
+// underlyingImage returns the concrete stdlib image backing src. xdraw's
+// fast paths dispatch on specific image types, so passing our wrapper
 // yields incorrect results.
-func underlyingImage(img *Image) image.Image {
-	if img.nrgba != nil {
-		return img.nrgba
+func underlyingImage(src image.Image) image.Image {
+	if g, ok := src.(*Image); ok {
+		if g == nil {
+			return nil
+		}
+		if g.nrgba != nil {
+			return g.nrgba
+		}
+		if g.pal != nil {
+			return g.pal
+		}
+		if g.generic != nil {
+			return g.generic
+		}
+		return g
 	}
-	if img.pal != nil {
-		return img.pal
-	}
-	return img
+	return src
 }

@@ -97,8 +97,14 @@ func (img *Image) plotThick(x, y int, c Color) {
 func (img *Image) writeColor(x, y int, c Color) {
 	if img.nrgba != nil {
 		img.nrgba.SetNRGBA(x, y, gdColorToNRGBA(c))
-	} else if img.pal != nil && int(c) >= 0 && int(c) < len(img.pal.Palette) {
+		return
+	}
+	if img.pal != nil && int(c) >= 0 && int(c) < len(img.pal.Palette) {
 		img.pal.SetColorIndex(x, y, uint8(c))
+		return
+	}
+	if img.generic != nil {
+		img.generic.Set(x, y, gdColorToNRGBA(c))
 	}
 }
 
@@ -106,7 +112,10 @@ func (img *Image) writeColor(x, y int, c Color) {
 
 // ImageLine draws a line from (x1, y1) to (x2, y2) using Bresenham's
 // algorithm, respecting the current thickness and clip rectangle.
-func ImageLine(img *Image, x1, y1, x2, y2 int, c Color) bool {
+// Accepts any [draw.Image]; state (thickness, clip) is taken from
+// gogd's *Image or defaults to 1 / whole image otherwise.
+func ImageLine(dst draw.Image, x1, y1, x2, y2 int, c Color) bool {
+	img := asImage(dst)
 	if img == nil {
 		return false
 	}
@@ -144,8 +153,9 @@ func ImageLine(img *Image, x1, y1, x2, y2 int, c Color) bool {
 }
 
 // ImageDashedLine draws a dashed line (4 on, 4 off) from (x1, y1) to
-// (x2, y2).
-func ImageDashedLine(img *Image, x1, y1, x2, y2 int, c Color) bool {
+// (x2, y2). Accepts any [draw.Image].
+func ImageDashedLine(dst draw.Image, x1, y1, x2, y2 int, c Color) bool {
+	img := asImage(dst)
 	if img == nil {
 		return false
 	}
@@ -188,21 +198,23 @@ func ImageDashedLine(img *Image, x1, y1, x2, y2 int, c Color) bool {
 
 // --- rectangles ---
 
-// ImageRectangle draws an outlined rectangle.
-func ImageRectangle(img *Image, x1, y1, x2, y2 int, c Color) bool {
-	if img == nil {
+// ImageRectangle draws an outlined rectangle. Accepts any [draw.Image].
+func ImageRectangle(dst draw.Image, x1, y1, x2, y2 int, c Color) bool {
+	if dst == nil {
 		return false
 	}
-	ImageLine(img, x1, y1, x2, y1, c)
-	ImageLine(img, x2, y1, x2, y2, c)
-	ImageLine(img, x2, y2, x1, y2, c)
-	ImageLine(img, x1, y2, x1, y1, c)
+	ImageLine(dst, x1, y1, x2, y1, c)
+	ImageLine(dst, x2, y1, x2, y2, c)
+	ImageLine(dst, x2, y2, x1, y2, c)
+	ImageLine(dst, x1, y2, x1, y1, c)
 	return true
 }
 
 // ImageFilledRectangle draws a filled rectangle from (x1, y1) to
 // (x2, y2) inclusive. For truecolor images, alpha blending is honoured.
-func ImageFilledRectangle(img *Image, x1, y1, x2, y2 int, c Color) bool {
+// Accepts any [draw.Image].
+func ImageFilledRectangle(dst draw.Image, x1, y1, x2, y2 int, c Color) bool {
+	img := asImage(dst)
 	if img == nil {
 		return false
 	}
@@ -234,37 +246,47 @@ func ImageFilledRectangle(img *Image, x1, y1, x2, y2 int, c Color) bool {
 		}
 		return true
 	}
+	if img.generic != nil {
+		src := image.NewUniform(gdColorToNRGBA(c))
+		op := draw.Src
+		if img.alphaBlending {
+			op = draw.Over
+		}
+		draw.Draw(img.generic, r, src, image.Point{}, op)
+		return true
+	}
 	return false
 }
 
 // --- polygons ---
 
 // ImagePolygon draws a closed polygon.
-func ImagePolygon(img *Image, points []image.Point, c Color) bool {
-	return drawPolygonOutline(img, points, c, true)
+func ImagePolygon(dst draw.Image, points []image.Point, c Color) bool {
+	return drawPolygonOutline(dst, points, c, true)
 }
 
 // ImageOpenPolygon draws an open polygon (no line from last to first).
-func ImageOpenPolygon(img *Image, points []image.Point, c Color) bool {
-	return drawPolygonOutline(img, points, c, false)
+func ImageOpenPolygon(dst draw.Image, points []image.Point, c Color) bool {
+	return drawPolygonOutline(dst, points, c, false)
 }
 
-func drawPolygonOutline(img *Image, points []image.Point, c Color, closed bool) bool {
-	if img == nil || len(points) < 2 {
+func drawPolygonOutline(dst draw.Image, points []image.Point, c Color, closed bool) bool {
+	if dst == nil || len(points) < 2 {
 		return false
 	}
 	for i := 0; i < len(points)-1; i++ {
-		ImageLine(img, points[i].X, points[i].Y, points[i+1].X, points[i+1].Y, c)
+		ImageLine(dst, points[i].X, points[i].Y, points[i+1].X, points[i+1].Y, c)
 	}
 	if closed && len(points) >= 3 {
 		last := len(points) - 1
-		ImageLine(img, points[last].X, points[last].Y, points[0].X, points[0].Y, c)
+		ImageLine(dst, points[last].X, points[last].Y, points[0].X, points[0].Y, c)
 	}
 	return true
 }
 
 // ImageFilledPolygon draws a filled polygon using scanline fill.
-func ImageFilledPolygon(img *Image, points []image.Point, c Color) bool {
+func ImageFilledPolygon(dst draw.Image, points []image.Point, c Color) bool {
+	img := asImage(dst)
 	if img == nil || len(points) < 3 {
 		return false
 	}
@@ -311,7 +333,8 @@ func ImageFilledPolygon(img *Image, points []image.Point, c Color) bool {
 
 // ImageEllipse draws an outlined ellipse centered at (cx, cy) with
 // given width and height (diameters).
-func ImageEllipse(img *Image, cx, cy, width, height int, c Color) bool {
+func ImageEllipse(dst draw.Image, cx, cy, width, height int, c Color) bool {
+	img := asImage(dst)
 	if img == nil {
 		return false
 	}
@@ -320,7 +343,8 @@ func ImageEllipse(img *Image, cx, cy, width, height int, c Color) bool {
 }
 
 // ImageFilledEllipse draws a filled ellipse.
-func ImageFilledEllipse(img *Image, cx, cy, width, height int, c Color) bool {
+func ImageFilledEllipse(dst draw.Image, cx, cy, width, height int, c Color) bool {
+	img := asImage(dst)
 	if img == nil {
 		return false
 	}
@@ -402,7 +426,8 @@ func drawMidpointEllipse(img *Image, cx, cy, w, h int, c Color) {
 
 // ImageArc draws an arc (section of an ellipse outline) from start to
 // end degrees. Angles are measured clockwise from 3 o'clock.
-func ImageArc(img *Image, cx, cy, w, h, start, end int, c Color) bool {
+func ImageArc(dst draw.Image, cx, cy, w, h, start, end int, c Color) bool {
+	img := asImage(dst)
 	if img == nil {
 		return false
 	}
@@ -446,8 +471,8 @@ const (
 )
 
 // ImageFilledArc draws a filled arc (pie slice or chord).
-func ImageFilledArc(img *Image, cx, cy, w, h, start, end int, c Color, style int) bool {
-	if img == nil {
+func ImageFilledArc(dst draw.Image, cx, cy, w, h, start, end int, c Color, style int) bool {
+	if dst == nil {
 		return false
 	}
 	rx := float64(w) / 2
@@ -484,22 +509,22 @@ func ImageFilledArc(img *Image, cx, cy, w, h, start, end int, c Color, style int
 			pts = append(pts, image.Point{X: ex, Y: ey})
 		}
 		if len(pts) >= 3 {
-			ImageFilledPolygon(img, pts, c)
+			ImageFilledPolygon(dst, pts, c)
 		}
 	}
 
 	// Draw outline edge.
 	if !doFill || style&ImgArcEdged != 0 {
-		ImageArc(img, cx, cy, w, h, start, end, c)
+		ImageArc(dst, cx, cy, w, h, start, end, c)
 		sx := cx + int(math.Round(rx*math.Cos(a1)))
 		sy := cy + int(math.Round(ry*math.Sin(a1)))
 		ex := cx + int(math.Round(rx*math.Cos(a2)))
 		ey := cy + int(math.Round(ry*math.Sin(a2)))
 		if isChord {
-			ImageLine(img, sx, sy, ex, ey, c)
+			ImageLine(dst, sx, sy, ex, ey, c)
 		} else {
-			ImageLine(img, cx, cy, sx, sy, c)
-			ImageLine(img, cx, cy, ex, ey, c)
+			ImageLine(dst, cx, cy, sx, sy, c)
+			ImageLine(dst, cx, cy, ex, ey, c)
 		}
 	}
 	return true
@@ -509,7 +534,8 @@ func ImageFilledArc(img *Image, cx, cy, w, h, start, end int, c Color, style int
 
 // ImageFill performs a flood fill starting at (x, y), replacing all
 // connected pixels of the same color as (x, y) with c.
-func ImageFill(img *Image, x, y int, c Color) bool {
+func ImageFill(dst draw.Image, x, y int, c Color) bool {
+	img := asImage(dst)
 	if img == nil {
 		return false
 	}
@@ -563,7 +589,8 @@ func ImageFill(img *Image, x, y int, c Color) bool {
 
 // ImageFillToBorder performs a flood fill starting at (x, y), filling all
 // connected pixels until the border color is reached.
-func ImageFillToBorder(img *Image, x, y int, border, c Color) bool {
+func ImageFillToBorder(dst draw.Image, x, y int, border, c Color) bool {
+	img := asImage(dst)
 	if img == nil {
 		return false
 	}

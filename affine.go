@@ -137,14 +137,15 @@ func ImageAffineMatrixConcat(m1, m2 [6]float64) [6]float64 {
 	}
 }
 
-// ImageAffine applies the given affine matrix to img and returns a new
+// ImageAffine applies the given affine matrix to src and returns a new
 // truecolor image sized to the transformed bounding box. If clip is
-// non-nil it bounds the source region considered.
-func ImageAffine(img *Image, m [6]float64, clip *image.Rectangle) *Image {
-	if img == nil {
+// non-nil it bounds the source region considered. Accepts any
+// [image.Image].
+func ImageAffine(src image.Image, m [6]float64, clip *image.Rectangle) *Image {
+	if src == nil {
 		return nil
 	}
-	srcRect := img.Bounds()
+	srcRect := src.Bounds()
 	if clip != nil {
 		srcRect = clip.Intersect(srcRect)
 		if srcRect.Empty() {
@@ -224,7 +225,7 @@ func ImageAffine(img *Image, m [6]float64, clip *image.Rectangle) *Image {
 			if sxi < 0 || sxi >= w || syi < 0 || syi >= h {
 				continue
 			}
-			dst.nrgba.SetNRGBA(dx, dy, nrgbaOf(img.At(srcRect.Min.X+sxi, srcRect.Min.Y+syi)))
+			dst.nrgba.SetNRGBA(dx, dy, nrgbaOf(src.At(srcRect.Min.X+sxi, srcRect.Min.Y+syi)))
 		}
 	}
 	ImageAlphaBlending(dst, true)
@@ -236,12 +237,12 @@ func ImageAffine(img *Image, m [6]float64, clip *image.Rectangle) *Image {
 // ImageCropAuto automatically crops img according to mode, using
 // threshold and color when CropThreshold is requested. Returns a new
 // truecolor image, or nil if the whole image matched the crop condition
-// (no content left).
-func ImageCropAuto(img *Image, mode int, threshold float64, c Color) *Image {
-	if img == nil {
+// (no content left). Accepts any [image.Image].
+func ImageCropAuto(src image.Image, mode int, threshold float64, c Color) *Image {
+	if src == nil {
 		return nil
 	}
-	b := img.Bounds()
+	b := src.Bounds()
 	w, h := b.Dx(), b.Dy()
 	if w == 0 || h == 0 {
 		return nil
@@ -250,31 +251,30 @@ func ImageCropAuto(img *Image, mode int, threshold float64, c Color) *Image {
 	var matches func(x, y int) bool
 	switch mode {
 	case CropDefault:
-		return ImageCropAuto(img, CropTransparent, threshold, c)
+		return ImageCropAuto(src, CropTransparent, threshold, c)
 	case CropTransparent:
 		matches = func(x, y int) bool {
-			return nrgbaOf(img.At(x, y)).A == 0
+			return nrgbaOf(src.At(x, y)).A == 0
 		}
 	case CropBlack:
 		matches = func(x, y int) bool {
-			nc := nrgbaOf(img.At(x, y))
+			nc := nrgbaOf(src.At(x, y))
 			return nc.R == 0 && nc.G == 0 && nc.B == 0
 		}
 	case CropWhite:
 		matches = func(x, y int) bool {
-			nc := nrgbaOf(img.At(x, y))
+			nc := nrgbaOf(src.At(x, y))
 			return nc.R == 255 && nc.G == 255 && nc.B == 255
 		}
 	case CropSides:
-		// Use the four corner pixels' majority colour as the crop target.
-		target := majorityCorner(img)
+		target := majorityCorner(src)
 		matches = func(x, y int) bool {
-			return sameColor(nrgbaOf(img.At(x, y)), target)
+			return sameColor(nrgbaOf(src.At(x, y)), target)
 		}
 	case CropThreshold:
 		target := gdColorToNRGBA(c)
 		matches = func(x, y int) bool {
-			return colorDistance(nrgbaOf(img.At(x, y)), target) <= threshold
+			return colorDistance(nrgbaOf(src.At(x, y)), target) <= threshold
 		}
 	default:
 		return nil
@@ -303,16 +303,16 @@ func ImageCropAuto(img *Image, mode int, threshold float64, c Color) *Image {
 	if right < left || bottom < top {
 		return nil
 	}
-	return ImageCrop(img, image.Rect(left, top, right+1, bottom+1))
+	return ImageCrop(src, image.Rect(left, top, right+1, bottom+1))
 }
 
-func majorityCorner(img *Image) color.NRGBA {
-	b := img.Bounds()
+func majorityCorner(src image.Image) color.NRGBA {
+	b := src.Bounds()
 	cs := []color.NRGBA{
-		nrgbaOf(img.At(b.Min.X, b.Min.Y)),
-		nrgbaOf(img.At(b.Max.X-1, b.Min.Y)),
-		nrgbaOf(img.At(b.Min.X, b.Max.Y-1)),
-		nrgbaOf(img.At(b.Max.X-1, b.Max.Y-1)),
+		nrgbaOf(src.At(b.Min.X, b.Min.Y)),
+		nrgbaOf(src.At(b.Max.X-1, b.Min.Y)),
+		nrgbaOf(src.At(b.Min.X, b.Max.Y-1)),
+		nrgbaOf(src.At(b.Max.X-1, b.Max.Y-1)),
 	}
 	counts := map[color.NRGBA]int{}
 	for _, c := range cs {
