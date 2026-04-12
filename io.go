@@ -17,6 +17,24 @@ import (
 // errNilImage is returned by encoders when passed a nil *Image.
 var errNilImage = errors.New("gogd: nil image")
 
+// ImageInterlace gets or sets the interlace flag. When enable is
+// provided the flag is updated; the return value is 1 if interlace is
+// currently on, 0 otherwise. Note: the Go PNG and JPEG encoders in the
+// stdlib don't expose an interlace option, so the flag is currently
+// stored for API compatibility but not plumbed through to encoders.
+func ImageInterlace(img *Image, enable ...bool) int {
+	if img == nil {
+		return 0
+	}
+	if len(enable) > 0 {
+		img.interlace = enable[0]
+	}
+	if img.interlace {
+		return 1
+	}
+	return 0
+}
+
 // ImagePNG writes img to w as PNG. Accepts any [image.Image].
 func ImagePNG(img image.Image, w io.Writer) error {
 	if img == nil {

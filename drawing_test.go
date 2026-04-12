@@ -257,6 +257,47 @@ func TestClip(t *testing.T) {
 	}
 }
 
+func TestSetStyleLineAlternating(t *testing.T) {
+	img := ImageCreateTrueColor(12, 1)
+	ImageAlphaBlending(img, false)
+	black := ImageColorAllocate(img, 0, 0, 0)
+	red := ImageColorAllocate(img, 255, 0, 0)
+	_ = black
+	// Alternate red / transparent so every other pixel stays untouched.
+	ImageSetStyle(img, []Color{red, ColorTransparent})
+	ImageLine(img, 0, 0, 11, 0, ColorStyled)
+	for x := 0; x < 12; x++ {
+		r, _, _, _ := ImageColorsForIndex(img, ImageColorAt(img, x, 0))
+		if x%2 == 0 && r != 255 {
+			t.Errorf("expected red at x=%d, got r=%d", x, r)
+		}
+		if x%2 == 1 && r == 255 {
+			t.Errorf("expected untouched at x=%d, got r=%d", x, r)
+		}
+	}
+}
+
+func TestSetBrushStamped(t *testing.T) {
+	brush := ImageCreateTrueColor(3, 3)
+	ImageAlphaBlending(brush, false)
+	red := ImageColorAllocate(brush, 255, 0, 0)
+	ImageFilledRectangle(brush, 0, 0, 2, 2, red)
+
+	img := ImageCreateTrueColor(12, 12)
+	ImageAlphaBlending(img, false)
+	black := ImageColorAllocate(img, 0, 0, 0)
+	ImageFilledRectangle(img, 0, 0, 11, 11, black)
+	ImageSetBrush(img, brush)
+	ImageLine(img, 4, 4, 7, 4, ColorBrushed)
+	// The brush (3×3 red) should have covered pixels around y=4 centred at x in [4,7].
+	if r, _, _, _ := ImageColorsForIndex(img, ImageColorAt(img, 5, 4)); r != 255 {
+		t.Errorf("brush stamp missing at (5,4): r=%d", r)
+	}
+	if r, _, _, _ := ImageColorsForIndex(img, ImageColorAt(img, 5, 3)); r != 255 {
+		t.Errorf("brush stamp row missing at (5,3): r=%d", r)
+	}
+}
+
 func TestOpenPolygon(t *testing.T) {
 	img := ImageCreateTrueColor(20, 20)
 	ImageAlphaBlending(img, false)

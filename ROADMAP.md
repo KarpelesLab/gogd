@@ -48,7 +48,7 @@ Decoders and encoders via stdlib + `golang.org/x/image`.
 - [x] `image_type_to_extension`
 - [x] `image_type_to_mime_type`
 - [x] `getimagesize` / `getimagesizefromstring`
-- [ ] `imageinterlace`
+- [~] `imageinterlace` — flag plumbed; Go's stdlib encoders don't expose an interlace knob so the flag is stored only
 
 ## M3 — Drawing primitives `[~]`
 
@@ -59,7 +59,8 @@ Decoders and encoders via stdlib + `golang.org/x/image`.
 - [x] `imagearc`, `imagefilledarc`
 - [x] `imagefill`, `imagefilltoborder`
 - [x] `imagesetthickness`
-- [ ] `imagesetstyle`, `imagesetbrush`, `imagesettile`
+- [x] `imagesetstyle` (+ `ColorStyled`/`ColorTransparent` sentinels)
+- [~] `imagesetbrush` (+ `ColorBrushed` stamping in ImageLine); `imagesettile` stub only
 - [x] `imageantialias` (flag only; actual AA not yet implemented)
 - [x] `imagesetclip`, `imagegetclip`
 
@@ -99,12 +100,12 @@ Decoders and encoders via stdlib + `golang.org/x/image`.
 - [~] `imageloadfont` stub — gd's `.gd` font-file format not yet parsed
 - [x] `imagettftext`, `imagettfbbox`, `imagefttext`, `imageftbbox` via `golang.org/x/image/font/opentype`; non-zero angle renders via an off-screen rotate-and-paste
 
-## M7 — Niche / low-priority
+## M7 — Niche / low-priority `[~]`
 
 - [ ] `imagegd` / `imagecreatefromgd`
 - [ ] `imagegd2` / `imagecreatefromgd2` / `imagecreatefromgd2part`
-- [ ] `imagewbmp` / `imagecreatefromwbmp`
-- [ ] `imagexbm` / `imagecreatefromxbm`
+- [x] `imagewbmp` / `imagecreatefromwbmp`
+- [x] `imagexbm` / `imagecreatefromxbm`
 - [ ] `imagecreatefromxpm`
 - [ ] `imageavif` / `imagecreatefromavif`
 - [ ] `imagecreatefromtga`

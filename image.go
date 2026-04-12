@@ -35,12 +35,16 @@ type Image struct {
 	alphaBlending bool
 	saveAlpha     bool
 	antialias     bool
+	interlace     bool
 	transparent   Color
 	thickness     int
 	interpolation int
 	resolutionX   int
 	resolutionY   int
 	clip          image.Rectangle // zero => whole image
+	style         []Color         // set via ImageSetStyle; consulted for ColorStyled
+	brush         *Image          // set via ImageSetBrush; painted per line pixel for ColorBrushed
+	tile          *Image          // set via ImageSetTile; used for ColorTiled fills
 }
 
 // ImageCreateTrueColor returns a new truecolor Image of the given size.

@@ -218,6 +218,22 @@ func TestImageTypesReportsSupported(t *testing.T) {
 	}
 }
 
+func TestImageInterlace(t *testing.T) {
+	img := ImageCreateTrueColor(2, 2)
+	if got := ImageInterlace(img); got != 0 {
+		t.Errorf("default interlace = %d", got)
+	}
+	if got := ImageInterlace(img, true); got != 1 {
+		t.Errorf("after enable = %d, want 1", got)
+	}
+	if got := ImageInterlace(img); got != 1 {
+		t.Errorf("persisted = %d, want 1", got)
+	}
+	if got := ImageInterlace(img, false); got != 0 {
+		t.Errorf("after disable = %d", got)
+	}
+}
+
 func TestEncodeNilImage(t *testing.T) {
 	var buf bytes.Buffer
 	if err := ImagePNG(nil, &buf); err == nil {

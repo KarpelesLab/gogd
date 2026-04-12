@@ -6,7 +6,53 @@ import (
 	"math"
 )
 
+// Special color sentinels matching PHP's IMG_COLOR_* constants.
+// Pass them to drawing functions in place of a real color to switch
+// behaviour: styled (step through the pattern set via [ImageSetStyle]),
+// brushed (paint a small image at each step), tiled (fill with a tile),
+// or transparent (skip the pixel in a styled pattern).
+const (
+	ColorStyled        Color = -2
+	ColorBrushed       Color = -3
+	ColorStyledBrushed Color = -4
+	ColorTiled         Color = -5
+	ColorTransparent   Color = -6
+)
+
 // --- state ---
+
+// ImageSetStyle sets the color pattern used when a drawing function is
+// invoked with [ColorStyled]. Each entry is consulted in turn per pixel
+// step; [ColorTransparent] entries leave the underlying pixel alone.
+func ImageSetStyle(img *Image, style []Color) bool {
+	if img == nil {
+		return false
+	}
+	img.style = append(img.style[:0], style...)
+	return true
+}
+
+// ImageSetBrush records a brush image to paint at each pixel when a
+// drawing function is invoked with [ColorBrushed]. Currently stored for
+// API compatibility; rendering is pending.
+func ImageSetBrush(img *Image, brush *Image) bool {
+	if img == nil {
+		return false
+	}
+	img.brush = brush
+	return true
+}
+
+// ImageSetTile records a tile image used for area fills when a drawing
+// function is invoked with [ColorTiled]. Currently stored for API
+// compatibility; rendering is pending.
+func ImageSetTile(img *Image, tile *Image) bool {
+	if img == nil {
+		return false
+	}
+	img.tile = tile
+	return true
+}
 
 // ImageSetThickness sets the line thickness in pixels used for outline
 // operations (lines, rectangles, ellipses, polygons). Returns the
@@ -128,8 +174,9 @@ func ImageLine(dst draw.Image, x1, y1, x2, y2 int, c Color) bool {
 		sy = -1
 	}
 	err := dx + dy
+	step := 0
 	for {
-		img.plotThick(x1, y1, c)
+		img.plotStyled(x1, y1, c, step)
 		if x1 == x2 && y1 == y2 {
 			break
 		}
@@ -148,8 +195,62 @@ func ImageLine(dst draw.Image, x1, y1, x2, y2 int, c Color) bool {
 			err += dx
 			y1 += sy
 		}
+		step++
 	}
 	return true
+}
+
+// plotStyled dispatches on special color sentinels. For plain Color
+// values it calls plotThick directly; for ColorStyled it cycles through
+// img.style; for ColorBrushed/ColorStyledBrushed it stamps the brush;
+// ColorTransparent skips the pixel.
+func (img *Image) plotStyled(x, y int, c Color, step int) {
+	switch c {
+	case ColorTransparent:
+		return
+	case ColorStyled:
+		if len(img.style) == 0 {
+			return
+		}
+		sc := img.style[step%len(img.style)]
+		if sc == ColorTransparent {
+			return
+		}
+		img.plotThick(x, y, sc)
+	case ColorBrushed:
+		img.stampBrush(x, y)
+	case ColorStyledBrushed:
+		if len(img.style) == 0 {
+			return
+		}
+		if img.style[step%len(img.style)] == ColorTransparent {
+			return
+		}
+		img.stampBrush(x, y)
+	default:
+		img.plotThick(x, y, c)
+	}
+}
+
+// stampBrush paints the brush image centred at (cx, cy).
+func (img *Image) stampBrush(cx, cy int) {
+	if img.brush == nil {
+		return
+	}
+	bb := img.brush.Bounds()
+	w, h := bb.Dx(), bb.Dy()
+	ox := cx - w/2
+	oy := cy - h/2
+	for by := 0; by < h; by++ {
+		for bx := 0; bx < w; bx++ {
+			px, py := ox+bx, oy+by
+			if !(image.Point{X: px, Y: py}).In(img.clipRect()) {
+				continue
+			}
+			c := img.brush.At(bb.Min.X+bx, bb.Min.Y+by)
+			img.Set(px, py, c)
+		}
+	}
 }
 
 // ImageDashedLine draws a dashed line (4 on, 4 off) from (x1, y1) to
