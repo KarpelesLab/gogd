@@ -140,6 +140,13 @@ func ImageFilter(dst draw.Image, filter int, args ...int) bool {
 		blockSize := args[0]
 		advanced := len(args) >= 2 && args[1] != 0
 		return applyPixelate(img, blockSize, advanced)
+	case FilterSelectiveBlur:
+		return applySelectiveBlur(img)
+	case FilterScatter:
+		if len(args) < 2 {
+			return false
+		}
+		return applyScatter(img, args[0], args[1])
 	}
 	return false
 }
@@ -465,6 +472,118 @@ func applyKernel(img *Image, k [3][3]float64, divisor, offset float64) bool {
 		}
 	}
 	return true
+}
+
+// applySelectiveBlur averages each pixel with its 3×3 neighbours,
+// excluding neighbours whose luminance differs from the centre by more
+// than a fixed threshold. Preserves edges while smoothing flat areas.
+func applySelectiveBlur(img *Image) bool {
+	if img == nil || img.nrgba == nil {
+		return false
+	}
+	dst := img.nrgba
+	b := dst.Bounds()
+	w, h := b.Dx(), b.Dy()
+	src := image.NewNRGBA(b)
+	copy(src.Pix, dst.Pix)
+	const threshold = 16
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			c := src.NRGBAAt(x, y)
+			cl := int(c.R)*299 + int(c.G)*587 + int(c.B)*114
+			var sr, sg, sb, count int
+			for dy := -1; dy <= 1; dy++ {
+				for dx := -1; dx <= 1; dx++ {
+					nx, ny := x+dx, y+dy
+					if nx < 0 || nx >= w || ny < 0 || ny >= h {
+						continue
+					}
+					nc := src.NRGBAAt(nx, ny)
+					nl := int(nc.R)*299 + int(nc.G)*587 + int(nc.B)*114
+					d := nl - cl
+					if d < 0 {
+						d = -d
+					}
+					if d > threshold*1000 {
+						continue
+					}
+					sr += int(nc.R)
+					sg += int(nc.G)
+					sb += int(nc.B)
+					count++
+				}
+			}
+			if count == 0 {
+				continue
+			}
+			dst.SetNRGBA(x, y, color.NRGBA{
+				R: uint8(sr / count),
+				G: uint8(sg / count),
+				B: uint8(sb / count),
+				A: c.A,
+			})
+		}
+	}
+	return true
+}
+
+// applyScatter displaces each pixel by a random offset in the range
+// [-sub, +plus] along each axis. Simulates film-grain / noise.
+func applyScatter(img *Image, sub, plus int) bool {
+	if img == nil || img.nrgba == nil {
+		return false
+	}
+	if sub < 0 {
+		sub = 0
+	}
+	if plus < 0 {
+		plus = 0
+	}
+	span := sub + plus + 1
+	if span <= 1 {
+		return true
+	}
+	dst := img.nrgba
+	b := dst.Bounds()
+	w, h := b.Dx(), b.Dy()
+	src := image.NewNRGBA(b)
+	copy(src.Pix, dst.Pix)
+	rng := scatterRNG()
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			ox := (rng() % uint32(span)) - uint32(sub)
+			oy := (rng() % uint32(span)) - uint32(sub)
+			nx := x + int(int32(ox))
+			ny := y + int(int32(oy))
+			if nx < 0 {
+				nx = 0
+			}
+			if nx >= w {
+				nx = w - 1
+			}
+			if ny < 0 {
+				ny = 0
+			}
+			if ny >= h {
+				ny = h - 1
+			}
+			dst.SetNRGBA(x, y, src.NRGBAAt(nx, ny))
+		}
+	}
+	return true
+}
+
+// scatterRNG returns a simple xorshift32 PRNG. The seed is derived from
+// a fixed constant so results are deterministic per call graph; the
+// filter is aesthetic, so reproducibility aids testing.
+func scatterRNG() func() uint32 {
+	state := uint32(0x9e3779b9)
+	return func() uint32 {
+		state ^= state << 13
+		state ^= state >> 17
+		state ^= state << 5
+		return state
+	}
 }
 
 func applyPixelate(img *Image, blockSize int, advanced bool) bool {

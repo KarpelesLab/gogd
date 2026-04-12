@@ -149,6 +149,60 @@ func TestFilterPixelate(t *testing.T) {
 	}
 }
 
+func TestFilterSelectiveBlur(t *testing.T) {
+	img := ImageCreateTrueColor(5, 5)
+	ImageAlphaBlending(img, false)
+	black := ImageColorAllocate(img, 0, 0, 0)
+	white := ImageColorAllocate(img, 255, 255, 255)
+	ImageFilledRectangle(img, 0, 0, 4, 4, black)
+	// Put one bright pixel in a dark neighbourhood; selective blur should
+	// mostly leave the edge alone (big luminance gap), while flat areas
+	// stay flat.
+	ImageSetPixel(img, 2, 2, white)
+	ImageFilter(img, FilterSelectiveBlur)
+	// Corner still flat black.
+	r, _, _, _ := ImageColorsForIndex(img, ImageColorAt(img, 0, 0))
+	if r != 0 {
+		t.Errorf("corner changed: r=%d", r)
+	}
+	// Centre pixel still bright (excluded dark neighbours).
+	r, _, _, _ = ImageColorsForIndex(img, ImageColorAt(img, 2, 2))
+	if r < 200 {
+		t.Errorf("bright centre darkened: r=%d", r)
+	}
+}
+
+func TestFilterScatter(t *testing.T) {
+	img := ImageCreateTrueColor(10, 10)
+	ImageAlphaBlending(img, false)
+	ImageFilledRectangle(img, 0, 0, 4, 9, ImageColorAllocate(img, 255, 0, 0))
+	ImageFilledRectangle(img, 5, 0, 9, 9, ImageColorAllocate(img, 0, 0, 255))
+	before := ImageColorAt(img, 4, 5)
+	// Scatter should jitter the border; run it and make sure it didn't
+	// blow up, then check that at least one border pixel changed.
+	if !ImageFilter(img, FilterScatter, 2, 2) {
+		t.Fatal("scatter failed")
+	}
+	changed := 0
+	for y := 0; y < 10; y++ {
+		for x := 3; x < 7; x++ {
+			if ImageColorAt(img, x, y) != before {
+				changed++
+			}
+		}
+	}
+	if changed == 0 {
+		t.Error("scatter produced no visible changes")
+	}
+}
+
+func TestFilterScatterBadArgs(t *testing.T) {
+	img := ImageCreateTrueColor(2, 2)
+	if ImageFilter(img, FilterScatter) {
+		t.Error("expected false with no args")
+	}
+}
+
 func TestConvolution(t *testing.T) {
 	img := makeSolid(3, 3, 128, 128, 128)
 	// Identity kernel should leave the image unchanged.

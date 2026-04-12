@@ -77,9 +77,9 @@ Decoders and encoders via stdlib + `golang.org/x/image`.
 
 ## M5 — Filters & color operations `[~]`
 
-- [~] `imagefilter` — NEGATE, GRAYSCALE, BRIGHTNESS, CONTRAST, COLORIZE,
-  EDGEDETECT, EMBOSS, GAUSSIAN_BLUR, MEAN_REMOVAL, SMOOTH, PIXELATE.
-  SELECTIVE_BLUR and SCATTER not yet implemented.
+- [x] `imagefilter` — all IMG_FILTER_* modes (NEGATE, GRAYSCALE,
+  BRIGHTNESS, CONTRAST, COLORIZE, EDGEDETECT, EMBOSS, GAUSSIAN_BLUR,
+  SELECTIVE_BLUR, MEAN_REMOVAL, SMOOTH, PIXELATE, SCATTER)
 - [x] `imageconvolution` — 3×3 convolution matrix with divisor + offset
 - [x] `imagegammacorrect`
 - [x] `imagelayereffect` — REPLACE/ALPHABLEND/NORMAL supported; OVERLAY/
@@ -107,7 +107,7 @@ Decoders and encoders via stdlib + `golang.org/x/image`.
 - [x] `imagexbm` / `imagecreatefromxbm`
 - [ ] `imagecreatefromxpm`
 - [ ] `imageavif` / `imagecreatefromavif`
-- [ ] `imagecreatefromtga`
+- [x] `imagecreatefromtga` — uncompressed + RLE, 24/32-bit truecolor, grayscale. Colormapped TGA (types 1 and 9) still pending.
 - [ ] `iptcembed`, `iptcparse`
 
 ## Out of scope
