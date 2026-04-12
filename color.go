@@ -3,6 +3,7 @@ package gogd
 import (
 	"image"
 	"image/color"
+	"math"
 )
 
 // ImageColorAllocate allocates a color on img. For truecolor images it
@@ -120,6 +121,38 @@ func ImageColorExactAlpha(img *Image, r, g, b, a int) Color {
 // the packed gd color.
 func ImageColorClosest(img *Image, r, g, b int) Color {
 	return ImageColorClosestAlpha(img, r, g, b, AlphaOpaque)
+}
+
+// ImageColorClosestHWB returns the palette index whose color is closest
+// to (r, g, b) in Hue/Whiteness/Blackness space — a better perceptual
+// match than RGB Euclidean distance for palette colors. For truecolor
+// images it returns the packed gd color.
+func ImageColorClosestHWB(img *Image, r, g, b int) Color {
+	if img == nil {
+		return ColorNone
+	}
+	r, g, b = clamp8(r), clamp8(g), clamp8(b)
+	if img.nrgba != nil {
+		return packGDColor(r, g, b, AlphaOpaque)
+	}
+	if img.pal == nil || len(img.pal.Palette) == 0 {
+		return ColorNone
+	}
+	th, tw, tbl := rgbToHWB(uint8(r), uint8(g), uint8(b))
+	best, bestD := -1, math.Inf(1)
+	for i, pc := range img.pal.Palette {
+		nc := color.NRGBAModel.Convert(pc).(color.NRGBA)
+		ph, pw, pbl := rgbToHWB(nc.R, nc.G, nc.B)
+		dh := math.Abs(ph - th)
+		if dh > 180 {
+			dh = 360 - dh
+		}
+		d := dh*dh + (pw-tw)*(pw-tw)*1000 + (pbl-tbl)*(pbl-tbl)*1000
+		if d < bestD {
+			bestD, best = d, i
+		}
+	}
+	return Color(best)
 }
 
 // ImageColorClosestAlpha is like [ImageColorClosest] but also considers
@@ -256,4 +289,75 @@ func pcEq(a, b color.Color) bool {
 	ar, ag, ab, aa := nrgbaComponents(a)
 	br, bg, bb, ba := nrgbaComponents(b)
 	return ar == br && ag == bg && ab == bb && aa == ba
+}
+
+// rgbToHWB converts 8-bit RGB to Hue (degrees, 0..360), Whiteness
+// (0..1), and Blackness (0..1).
+func rgbToHWB(r, g, b uint8) (h, w, bl float64) {
+	rf, gf, bf := float64(r)/255, float64(g)/255, float64(b)/255
+	cmax := math.Max(rf, math.Max(gf, bf))
+	cmin := math.Min(rf, math.Min(gf, bf))
+	w = cmin
+	bl = 1 - cmax
+	delta := cmax - cmin
+	if delta == 0 {
+		return 0, w, bl
+	}
+	switch cmax {
+	case rf:
+		h = math.Mod((gf-bf)/delta, 6)
+	case gf:
+		h = (bf-rf)/delta + 2
+	default:
+		h = (rf-gf)/delta + 4
+	}
+	h *= 60
+	if h < 0 {
+		h += 360
+	}
+	return
+}
+
+// ImageColorMatch tunes the palette of img1 so that its colors best match
+// the corresponding regions of img2. For each palette entry, the colors
+// of img2's pixels that map to that index in img1 are averaged, and
+// the palette slot is overwritten with the result. Both images must
+// have identical bounds.
+func ImageColorMatch(img1 *Image, img2 image.Image) bool {
+	if img1 == nil || img1.pal == nil || img2 == nil {
+		return false
+	}
+	if img1.Bounds() != img2.Bounds() {
+		return false
+	}
+	n := len(img1.pal.Palette)
+	if n == 0 {
+		return false
+	}
+	type acc struct{ r, g, b, count uint64 }
+	accs := make([]acc, n)
+	b := img1.Bounds()
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			idx := img1.pal.ColorIndexAt(x, y)
+			nc := color.NRGBAModel.Convert(img2.At(x, y)).(color.NRGBA)
+			accs[idx].r += uint64(nc.R)
+			accs[idx].g += uint64(nc.G)
+			accs[idx].b += uint64(nc.B)
+			accs[idx].count++
+		}
+	}
+	for i := 0; i < n; i++ {
+		a := accs[i]
+		if a.count == 0 {
+			continue
+		}
+		img1.pal.Palette[i] = color.NRGBA{
+			R: uint8(a.r / a.count),
+			G: uint8(a.g / a.count),
+			B: uint8(a.b / a.count),
+			A: 255,
+		}
+	}
+	return true
 }

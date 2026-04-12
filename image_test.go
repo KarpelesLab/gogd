@@ -118,6 +118,59 @@ func TestSetPixelOutOfBounds(t *testing.T) {
 	}
 }
 
+func TestColorClosestHWB(t *testing.T) {
+	img := ImageCreate(1, 1)
+	ImageColorAllocate(img, 0, 0, 0)       // 0: black
+	ImageColorAllocate(img, 255, 255, 255) // 1: white
+	ImageColorAllocate(img, 255, 0, 0)     // 2: red
+	ImageColorAllocate(img, 0, 255, 0)     // 3: green
+
+	if got := ImageColorClosestHWB(img, 250, 10, 10); got != 2 {
+		t.Errorf("near-red HWB = %d, want 2", got)
+	}
+	if got := ImageColorClosestHWB(img, 10, 10, 10); got != 0 {
+		t.Errorf("near-black HWB = %d, want 0", got)
+	}
+}
+
+func TestColorMatch(t *testing.T) {
+	// palette image with two indices
+	pal := ImageCreate(4, 4)
+	black := ImageColorAllocate(pal, 0, 0, 0)
+	red := ImageColorAllocate(pal, 200, 0, 0)
+	ImageFilledRectangle(pal, 0, 0, 1, 3, black)
+	ImageFilledRectangle(pal, 2, 0, 3, 3, red)
+
+	// truecolor "source of truth" with nearby but different shades.
+	tc := ImageCreateTrueColor(4, 4)
+	ImageAlphaBlending(tc, false)
+	dim := ImageColorAllocate(tc, 10, 20, 30)
+	bright := ImageColorAllocate(tc, 255, 100, 50)
+	ImageFilledRectangle(tc, 0, 0, 1, 3, dim)
+	ImageFilledRectangle(tc, 2, 0, 3, 3, bright)
+
+	if !ImageColorMatch(pal, tc) {
+		t.Fatal("colormatch failed")
+	}
+	r, g, b, _ := ImageColorsForIndex(pal, black)
+	if r != 10 || g != 20 || b != 30 {
+		t.Errorf("black slot not updated: %d,%d,%d", r, g, b)
+	}
+	r, g, b, _ = ImageColorsForIndex(pal, red)
+	if r != 255 || g != 100 || b != 50 {
+		t.Errorf("red slot not updated: %d,%d,%d", r, g, b)
+	}
+}
+
+func TestColorMatchBoundsMismatch(t *testing.T) {
+	pal := ImageCreate(2, 2)
+	ImageColorAllocate(pal, 0, 0, 0)
+	tc := ImageCreateTrueColor(3, 3)
+	if ImageColorMatch(pal, tc) {
+		t.Error("expected false on bounds mismatch")
+	}
+}
+
 func TestColorExactAndClosest(t *testing.T) {
 	img := ImageCreate(1, 1)
 	ImageColorAllocate(img, 0, 0, 0)

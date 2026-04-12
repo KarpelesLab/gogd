@@ -243,3 +243,31 @@ func TestTrueColorToPalette(t *testing.T) {
 		t.Errorf("red mapping too dark: r=%d", r)
 	}
 }
+
+func TestTrueColorToPaletteMedianCut(t *testing.T) {
+	// Build a gradient image with many unique colors.
+	img := ImageCreateTrueColor(16, 16)
+	ImageAlphaBlending(img, false)
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 16; x++ {
+			c := ImageColorAllocate(img, x*16, y*16, (x+y)*8)
+			ImageSetPixel(img, x, y, c)
+		}
+	}
+	if !ImageTrueColorToPalette(img, false, 16) {
+		t.Fatal("conversion failed")
+	}
+	if n := ImageColorsTotal(img); n > 16 || n == 0 {
+		t.Errorf("palette size = %d, want 1..16", n)
+	}
+	// The top-left (which was near-black) should still be dark-ish.
+	r, _, _, _ := ImageColorsForIndex(img, ImageColorAt(img, 0, 0))
+	if r > 100 {
+		t.Errorf("(0,0) too bright after quantize: r=%d", r)
+	}
+	// Bottom-right was bright red + some blue: should still be red-dominant.
+	r, _, _, _ = ImageColorsForIndex(img, ImageColorAt(img, 15, 0))
+	if r < 150 {
+		t.Errorf("(15,0) too dark: r=%d", r)
+	}
+}

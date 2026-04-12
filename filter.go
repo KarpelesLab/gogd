@@ -269,11 +269,11 @@ func ImageTrueColorToPalette(img *Image, dither bool, numColors int) bool {
 // --- internals ---
 
 // buildPalette produces a color.Palette of at most n entries for m. If
-// m has ≤ n unique colors, those are used verbatim. Otherwise the n
-// most frequent colors are picked. This is a simple quantizer — a
-// proper median-cut pass is left for a later milestone.
+// m has ≤ n unique colors, those are used verbatim. Otherwise median-cut
+// recursively partitions the color space along its widest channel until
+// n buckets remain, and each bucket contributes its weighted-mean color.
 func buildPalette(m *image.NRGBA, n int) color.Palette {
-	seen := make(map[color.NRGBA]int)
+	seen := make(map[color.NRGBA]uint32)
 	for i := 0; i+3 < len(m.Pix); i += 4 {
 		c := color.NRGBA{R: m.Pix[i], G: m.Pix[i+1], B: m.Pix[i+2], A: m.Pix[i+3]}
 		seen[c]++
@@ -288,21 +288,109 @@ func buildPalette(m *image.NRGBA, n int) color.Palette {
 		}
 		return p
 	}
-	type entry struct {
-		c color.NRGBA
-		n int
+	return medianCutPalette(seen, n)
+}
+
+type mcEntry struct {
+	c color.NRGBA
+	w uint32
+}
+
+type mcBucket struct{ start, end int }
+
+// medianCutPalette quantises the given weighted color histogram down to
+// n representative entries using the classic median-cut algorithm.
+func medianCutPalette(hist map[color.NRGBA]uint32, n int) color.Palette {
+	pool := make([]mcEntry, 0, len(hist))
+	for c, w := range hist {
+		pool = append(pool, mcEntry{c, w})
 	}
-	entries := make([]entry, 0, len(seen))
-	for c, count := range seen {
-		entries = append(entries, entry{c, count})
+	buckets := []mcBucket{{0, len(pool)}}
+	for len(buckets) < n {
+		bi, ch := pickSplitBucket(pool, buckets)
+		if bi < 0 {
+			break
+		}
+		b := buckets[bi]
+		slice := pool[b.start:b.end]
+		sort.Slice(slice, func(i, j int) bool {
+			return channelValue(slice[i].c, ch) < channelValue(slice[j].c, ch)
+		})
+		mid := b.start + len(slice)/2
+		buckets[bi] = mcBucket{b.start, mid}
+		buckets = append(buckets, mcBucket{mid, b.end})
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].n > entries[j].n })
-	p := make(color.Palette, 0, n)
-	for i := 0; i < n; i++ {
-		p = append(p, entries[i].c)
+	p := make(color.Palette, 0, len(buckets))
+	for _, b := range buckets {
+		if b.end <= b.start {
+			continue
+		}
+		var sr, sg, sb, sa, total uint64
+		for k := b.start; k < b.end; k++ {
+			e := pool[k]
+			w := uint64(e.w)
+			sr += uint64(e.c.R) * w
+			sg += uint64(e.c.G) * w
+			sb += uint64(e.c.B) * w
+			sa += uint64(e.c.A) * w
+			total += w
+		}
+		if total == 0 {
+			continue
+		}
+		p = append(p, color.NRGBA{
+			R: uint8(sr / total),
+			G: uint8(sg / total),
+			B: uint8(sb / total),
+			A: uint8(sa / total),
+		})
 	}
-	_ = palette.Plan9 // reserved for a future median-cut fallback
+	_ = palette.Plan9 // keep the import in case we fall back here later
 	return p
+}
+
+// pickSplitBucket returns the index of the bucket with the largest
+// range in any single channel, and which channel (0=R, 1=G, 2=B) spans
+// that range. Returns -1 when no bucket can be split further.
+func pickSplitBucket(pool []mcEntry, buckets []mcBucket) (int, int) {
+	bestBucket, bestCh, bestRange := -1, 0, -1
+	for i, b := range buckets {
+		if b.end-b.start < 2 {
+			continue
+		}
+		var mn, mx [3]int
+		for j := 0; j < 3; j++ {
+			mn[j], mx[j] = 256, -1
+		}
+		for k := b.start; k < b.end; k++ {
+			vs := [3]int{int(pool[k].c.R), int(pool[k].c.G), int(pool[k].c.B)}
+			for j := 0; j < 3; j++ {
+				if vs[j] < mn[j] {
+					mn[j] = vs[j]
+				}
+				if vs[j] > mx[j] {
+					mx[j] = vs[j]
+				}
+			}
+		}
+		for j := 0; j < 3; j++ {
+			r := mx[j] - mn[j]
+			if r > bestRange {
+				bestRange, bestBucket, bestCh = r, i, j
+			}
+		}
+	}
+	return bestBucket, bestCh
+}
+
+func channelValue(c color.NRGBA, ch int) uint8 {
+	switch ch {
+	case 0:
+		return c.R
+	case 1:
+		return c.G
+	}
+	return c.B
 }
 
 func perPixelFilter(img *Image, f func(color.NRGBA) color.NRGBA) bool {

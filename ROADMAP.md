@@ -31,9 +31,9 @@ Image type, truecolor vs palette, color allocation, direct pixel access.
 - [x] `imagesavealpha`
 - [x] `gd_info` → `GDInfo`
 - [x] `imagetypes` → `ImageTypes` (returns 0 until M2)
-- [ ] `imagecolorclosesthwb`
-- [ ] `imagecolormatch`
-- [ ] `imagecolorset`
+- [x] `imagecolorclosesthwb`
+- [x] `imagecolormatch`
+- [x] `imagecolorset` (landed in M5)
 
 ## M2 — I/O `[~]`
 
@@ -87,11 +87,10 @@ Decoders and encoders via stdlib + `golang.org/x/image`.
 - [x] `imagecolorset`, `imagecolorsetalpha`
 - [x] `imagepalettecopy`
 - [x] `imagepalettetotruecolor`
-- [x] `imagetruecolortopalette` — simple histogram quantizer (exact match
-  when unique colours fit; top-N by frequency otherwise). Median-cut upgrade
-  pending.
-- [ ] `imagecolormatch`
-- [ ] `imagecolorclosesthwb`
+- [x] `imagetruecolortopalette` — exact match when unique colours fit;
+  classic median-cut otherwise
+- [x] `imagecolormatch`
+- [x] `imagecolorclosesthwb`
 
 ## M6 — Text `[~]`
 
