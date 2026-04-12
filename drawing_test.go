@@ -257,6 +257,40 @@ func TestClip(t *testing.T) {
 	}
 }
 
+func TestSetTileFilledRectangle(t *testing.T) {
+	tile := ImageCreateTrueColor(2, 2)
+	ImageAlphaBlending(tile, false)
+	red := ImageColorAllocate(tile, 255, 0, 0)
+	blue := ImageColorAllocate(tile, 0, 0, 255)
+	ImageSetPixel(tile, 0, 0, red)
+	ImageSetPixel(tile, 1, 0, blue)
+	ImageSetPixel(tile, 0, 1, blue)
+	ImageSetPixel(tile, 1, 1, red)
+
+	img := ImageCreateTrueColor(8, 4)
+	ImageAlphaBlending(img, false)
+	ImageFilledRectangle(img, 0, 0, 7, 3, ImageColorAllocate(img, 0, 0, 0))
+	ImageSetTile(img, tile)
+	if !ImageFilledRectangle(img, 0, 0, 7, 3, ColorTiled) {
+		t.Fatal("tiled fill failed")
+	}
+	// (0, 0) should match tile(0, 0) = red
+	r, _, _, _ := ImageColorsForIndex(img, ImageColorAt(img, 0, 0))
+	if r != 255 {
+		t.Errorf("(0,0) = %d, want 255", r)
+	}
+	// (1, 0) should match tile(1, 0) = blue
+	_, _, b, _ := ImageColorsForIndex(img, ImageColorAt(img, 1, 0))
+	if b != 255 {
+		t.Errorf("(1,0) blue = %d, want 255", b)
+	}
+	// (2, 0) wraps around → tile(0, 0) = red again
+	r, _, _, _ = ImageColorsForIndex(img, ImageColorAt(img, 2, 0))
+	if r != 255 {
+		t.Errorf("(2,0) wrap = %d", r)
+	}
+}
+
 func TestSetStyleLineAlternating(t *testing.T) {
 	img := ImageCreateTrueColor(12, 1)
 	ImageAlphaBlending(img, false)

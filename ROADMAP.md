@@ -60,7 +60,8 @@ Decoders and encoders via stdlib + `golang.org/x/image`.
 - [x] `imagefill`, `imagefilltoborder`
 - [x] `imagesetthickness`
 - [x] `imagesetstyle` (+ `ColorStyled`/`ColorTransparent` sentinels)
-- [~] `imagesetbrush` (+ `ColorBrushed` stamping in ImageLine); `imagesettile` stub only
+- [x] `imagesetbrush` (+ `ColorBrushed` stamping in ImageLine)
+- [x] `imagesettile` (+ `ColorTiled` in filled rectangle and flood fill)
 - [x] `imageantialias` (flag only; actual AA not yet implemented)
 - [x] `imagesetclip`, `imagegetclip`
 
@@ -101,14 +102,14 @@ Decoders and encoders via stdlib + `golang.org/x/image`.
 
 ## M7 — Niche / low-priority `[~]`
 
-- [ ] `imagegd` / `imagecreatefromgd`
-- [ ] `imagegd2` / `imagecreatefromgd2` / `imagecreatefromgd2part`
+- [x] `imagegd` / `imagecreatefromgd` — libgd v1 format, truecolor + palette
+- [ ] `imagegd2` / `imagecreatefromgd2` / `imagecreatefromgd2part` — chunked/compressed variant, still pending
 - [x] `imagewbmp` / `imagecreatefromwbmp`
 - [x] `imagexbm` / `imagecreatefromxbm`
-- [ ] `imagecreatefromxpm`
-- [ ] `imageavif` / `imagecreatefromavif`
+- [x] `imagecreatefromxpm` — XPM3 including hex, short-hex, and common named colors
+- [ ] `imageavif` / `imagecreatefromavif` — no pure-Go codec available
 - [x] `imagecreatefromtga` — uncompressed + RLE, 24/32-bit truecolor, grayscale. Colormapped TGA (types 1 and 9) still pending.
-- [ ] `iptcembed`, `iptcparse`
+- [x] `iptcparse` — `iptcembed` still pending (needs JPEG marker surgery)
 
 ## Out of scope
 

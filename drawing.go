@@ -232,6 +232,27 @@ func (img *Image) plotStyled(x, y int, c Color, step int) {
 	}
 }
 
+// tileFillRect fills the given rectangle with a repeating copy of
+// img.tile. Returns false if no tile has been set.
+func tileFillRect(img *Image, r image.Rectangle) bool {
+	if img.tile == nil {
+		return false
+	}
+	tb := img.tile.Bounds()
+	tw, th := tb.Dx(), tb.Dy()
+	if tw <= 0 || th <= 0 {
+		return false
+	}
+	for y := r.Min.Y; y < r.Max.Y; y++ {
+		for x := r.Min.X; x < r.Max.X; x++ {
+			tx := tb.Min.X + ((x%tw)+tw)%tw
+			ty := tb.Min.Y + ((y%th)+th)%th
+			img.Set(x, y, img.tile.At(tx, ty))
+		}
+	}
+	return true
+}
+
 // stampBrush paints the brush image centred at (cx, cy).
 func (img *Image) stampBrush(cx, cy int) {
 	if img.brush == nil {
@@ -313,7 +334,8 @@ func ImageRectangle(dst draw.Image, x1, y1, x2, y2 int, c Color) bool {
 
 // ImageFilledRectangle draws a filled rectangle from (x1, y1) to
 // (x2, y2) inclusive. For truecolor images, alpha blending is honoured.
-// Accepts any [draw.Image].
+// Accepts any [draw.Image]. Pass [ColorTiled] to fill with the tile set
+// via [ImageSetTile].
 func ImageFilledRectangle(dst draw.Image, x1, y1, x2, y2 int, c Color) bool {
 	img := asImage(dst)
 	if img == nil {
@@ -328,6 +350,9 @@ func ImageFilledRectangle(dst draw.Image, x1, y1, x2, y2 int, c Color) bool {
 	r := image.Rect(x1, y1, x2+1, y2+1).Intersect(img.clipRect())
 	if r.Empty() {
 		return true
+	}
+	if c == ColorTiled {
+		return tileFillRect(img, r)
 	}
 	if img.nrgba != nil {
 		src := image.NewUniform(gdColorToNRGBA(c))
@@ -634,7 +659,8 @@ func ImageFilledArc(dst draw.Image, cx, cy, w, h, start, end int, c Color, style
 // --- flood fill ---
 
 // ImageFill performs a flood fill starting at (x, y), replacing all
-// connected pixels of the same color as (x, y) with c.
+// connected pixels of the same color as (x, y) with c. Pass
+// [ColorTiled] to paint with the tile set via [ImageSetTile].
 func ImageFill(dst draw.Image, x, y int, c Color) bool {
 	img := asImage(dst)
 	if img == nil {
@@ -645,7 +671,11 @@ func ImageFill(dst draw.Image, x, y int, c Color) bool {
 		return false
 	}
 	target := ImageColorAt(img, x, y)
-	if target == c {
+	useTile := c == ColorTiled
+	if useTile && img.tile == nil {
+		return false
+	}
+	if !useTile && target == c {
 		return true
 	}
 	type span struct{ x, y int }
@@ -664,8 +694,12 @@ func ImageFill(dst draw.Image, x, y int, c Color) bool {
 		for rx+1 < clip.Max.X && ImageColorAt(img, rx+1, p.y) == target {
 			rx++
 		}
-		for xi := lx; xi <= rx; xi++ {
-			img.writeColor(xi, p.y, c)
+		if useTile {
+			tileFillRect(img, image.Rect(lx, p.y, rx+1, p.y+1))
+		} else {
+			for xi := lx; xi <= rx; xi++ {
+				img.writeColor(xi, p.y, c)
+			}
 		}
 		for _, dy := range [2]int{-1, 1} {
 			yy := p.y + dy
