@@ -103,13 +103,13 @@ Decoders and encoders via stdlib + `golang.org/x/image`.
 ## M7 — Niche / low-priority `[~]`
 
 - [x] `imagegd` / `imagecreatefromgd` — libgd v1 format, truecolor + palette
-- [ ] `imagegd2` / `imagecreatefromgd2` / `imagecreatefromgd2part` — chunked/compressed variant, still pending
+- [~] `imagecreatefromgd2` — raw and zlib-compressed chunk formats (truecolor + palette). `imagegd2` encoder and `imagecreatefromgd2part` still pending.
 - [x] `imagewbmp` / `imagecreatefromwbmp`
 - [x] `imagexbm` / `imagecreatefromxbm`
 - [x] `imagecreatefromxpm` — XPM3 including hex, short-hex, and common named colors
 - [ ] `imageavif` / `imagecreatefromavif` — no pure-Go codec available
-- [x] `imagecreatefromtga` — uncompressed + RLE, 24/32-bit truecolor, grayscale. Colormapped TGA (types 1 and 9) still pending.
-- [x] `iptcparse` — `iptcembed` still pending (needs JPEG marker surgery)
+- [x] `imagecreatefromtga` — uncompressed + RLE, 24/32-bit truecolor, grayscale, and colormapped (types 1 & 9) with 15/16/24/32-bit color maps
+- [x] `iptcparse`, `iptcembed`
 
 ## Out of scope
 

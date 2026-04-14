@@ -110,6 +110,50 @@ func TestTGARLERoundtrip(t *testing.T) {
 	}
 }
 
+// writeTestTGA_Colormapped emits a minimal type-1 uncompressed
+// colormapped TGA with a 2-entry 24-bit color map.
+func writeTestTGA_Colormapped(t *testing.T) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	hdr := make([]byte, 18)
+	hdr[1] = 1 // colormap type = 1
+	hdr[2] = 1 // uncompressed colormapped
+	binary.LittleEndian.PutUint16(hdr[3:5], 0) // first entry = 0
+	binary.LittleEndian.PutUint16(hdr[5:7], 2) // 2 entries
+	hdr[7] = 24
+	binary.LittleEndian.PutUint16(hdr[12:14], 4)
+	binary.LittleEndian.PutUint16(hdr[14:16], 1)
+	hdr[16] = 8 // 8-bit indices
+	hdr[17] = 0
+	buf.Write(hdr)
+	// color map: entry 0 = black, entry 1 = red (BGR order)
+	buf.Write([]byte{0, 0, 0})
+	buf.Write([]byte{0, 0, 255})
+	// pixel row (bottom-up): indices 0, 1, 1, 0
+	buf.Write([]byte{0, 1, 1, 0})
+	return buf.Bytes()
+}
+
+func TestTGAColormappedUncompressed(t *testing.T) {
+	data := writeTestTGA_Colormapped(t)
+	img, err := ImageCreateFromTGA(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if img.Width() != 4 || img.Height() != 1 {
+		t.Errorf("size = %dx%d", img.Width(), img.Height())
+	}
+	// Index 1 → red (255, 0, 0). Pixel (1, 0) maps from index 1 in bottom-up row.
+	r, g, b, _ := ImageColorsForIndex(img, ImageColorAt(img, 1, 0))
+	if r != 255 || g != 0 || b != 0 {
+		t.Errorf("(1,0) = %d,%d,%d", r, g, b)
+	}
+	r, _, _, _ = ImageColorsForIndex(img, ImageColorAt(img, 0, 0))
+	if r != 0 {
+		t.Errorf("(0,0) not black: r=%d", r)
+	}
+}
+
 func TestTGABadHeader(t *testing.T) {
 	// type 5 is undefined in TGA spec
 	hdr := make([]byte, 18)

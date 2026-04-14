@@ -36,7 +36,7 @@ func ImageCreateFromTGA(r io.Reader) (*Image, error) {
 		return nil, fmt.Errorf("gogd: invalid tga dims %dx%d", width, height)
 	}
 	switch imgType {
-	case 2, 3, 10, 11:
+	case 1, 2, 3, 9, 10, 11:
 	default:
 		return nil, fmt.Errorf("gogd: unsupported tga image type %d", imgType)
 	}
@@ -49,16 +49,26 @@ func ImageCreateFromTGA(r io.Reader) (*Image, error) {
 			return nil, err
 		}
 	}
+
+	var palette []color.NRGBA
 	if colorMapType == 1 {
-		toSkip := int64(mapLen) * int64(mapEntrySize+7) / 8
-		if _, err := io.CopyN(io.Discard, br, toSkip); err != nil {
+		if mapEntrySize%8 != 0 || mapEntrySize < 15 || mapEntrySize > 32 {
+			return nil, fmt.Errorf("gogd: unsupported tga color-map entry size %d", mapEntrySize)
+		}
+		entryBytes := (mapEntrySize + 7) / 8
+		mapBuf := make([]byte, mapLen*entryBytes)
+		if _, err := io.ReadFull(br, mapBuf); err != nil {
 			return nil, err
+		}
+		palette = make([]color.NRGBA, mapLen)
+		for i := 0; i < mapLen; i++ {
+			palette[i] = decodeTGAColor(mapBuf[i*entryBytes:i*entryBytes+entryBytes], mapEntrySize)
 		}
 	}
 
 	bpp := pixDepth / 8
 	pixels := make([]byte, width*height*bpp)
-	if imgType >= 9 {
+	if imgType == 9 || imgType == 10 || imgType == 11 {
 		if err := readTGARLE(br, pixels, bpp); err != nil {
 			return nil, err
 		}
@@ -96,12 +106,45 @@ func ImageCreateFromTGA(r io.Reader) (*Image, error) {
 			case 3, 11:
 				gr := pixels[off]
 				nc = color.NRGBA{R: gr, G: gr, B: gr, A: 255}
+			case 1, 9:
+				idx := 0
+				switch bpp {
+				case 1:
+					idx = int(pixels[off])
+				case 2:
+					idx = int(pixels[off]) | int(pixels[off+1])<<8
+				default:
+					return nil, fmt.Errorf("gogd: unsupported tga colormap index bpp %d", bpp)
+				}
+				if idx < 0 || idx >= len(palette) {
+					continue
+				}
+				nc = palette[idx]
 			}
 			img.nrgba.SetNRGBA(dx, dy, nc)
 		}
 	}
 	ImageAlphaBlending(img, true)
 	return img, nil
+}
+
+// decodeTGAColor unpacks a TGA color-map entry. TGA stores entries in
+// little-endian order; 15/16-bit entries use 5-5-5(-1) ARRRRRGG GGGBBBBB
+// layout (bit 15 is attribute/alpha in the 16-bit form).
+func decodeTGAColor(b []byte, bits int) color.NRGBA {
+	switch bits {
+	case 15, 16:
+		v := uint16(b[0]) | uint16(b[1])<<8
+		r := uint8((v >> 10) & 0x1f)
+		g := uint8((v >> 5) & 0x1f)
+		bl := uint8(v & 0x1f)
+		return color.NRGBA{R: r * 8, G: g * 8, B: bl * 8, A: 255}
+	case 24:
+		return color.NRGBA{R: b[2], G: b[1], B: b[0], A: 255}
+	case 32:
+		return color.NRGBA{R: b[2], G: b[1], B: b[0], A: b[3]}
+	}
+	return color.NRGBA{A: 255}
 }
 
 // readTGARLE decodes a TGA RLE stream into out. Each packet is one

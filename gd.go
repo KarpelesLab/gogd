@@ -1,6 +1,8 @@
 package gogd
 
 import (
+	"bytes"
+	"compress/zlib"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -179,6 +181,175 @@ func writeGDTrueColor(w io.Writer, img *Image, width, height int) error {
 	}
 	_, err := w.Write(buf)
 	return err
+}
+
+// --- GD2 ---
+
+const (
+	gd2FormatRawPalette        = 1
+	gd2FormatCompressedPalette = 2
+	gd2FormatRawTrueColor      = 3
+	gd2FormatCompressedTC      = 4
+)
+
+// ImageCreateFromGD2 decodes a libgd GD2 image from r. Supports both
+// truecolor and palette, raw and zlib-compressed chunked variants.
+func ImageCreateFromGD2(r io.Reader) (*Image, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) < 18 {
+		return nil, errors.New("gogd: GD2 header truncated")
+	}
+	if string(data[:4]) != "gd2\x00" {
+		return nil, fmt.Errorf("gogd: not a GD2 image (magic %q)", string(data[:4]))
+	}
+	width := int(binary.BigEndian.Uint16(data[6:8]))
+	height := int(binary.BigEndian.Uint16(data[8:10]))
+	chunkSize := int(binary.BigEndian.Uint16(data[10:12]))
+	format := int(binary.BigEndian.Uint16(data[12:14]))
+	nChunksX := int(binary.BigEndian.Uint16(data[14:16]))
+	nChunksY := int(binary.BigEndian.Uint16(data[16:18]))
+	if width <= 0 || height <= 0 {
+		return nil, fmt.Errorf("gogd: GD2 invalid dims %dx%d", width, height)
+	}
+	compressed := format == gd2FormatCompressedPalette || format == gd2FormatCompressedTC
+	truecolor := format == gd2FormatRawTrueColor || format == gd2FormatCompressedTC
+	if !compressed && chunkSize != 0 {
+		// Raw format doesn't use chunks in any meaningful way; libgd still
+		// writes the field but ignores it.
+	}
+	if compressed && (chunkSize <= 0 || nChunksX <= 0 || nChunksY <= 0) {
+		return nil, fmt.Errorf("gogd: GD2 compressed but chunk dims invalid (%d %dx%d)", chunkSize, nChunksX, nChunksY)
+	}
+
+	pos := 18
+	var palette []color.NRGBA
+	var transparent int32
+	if truecolor {
+		// Truecolor info: 1-byte flag + 4-byte transparent.
+		if pos+5 > len(data) {
+			return nil, errors.New("gogd: GD2 truecolor header truncated")
+		}
+		pos++ // skip truecolor flag
+		transparent = int32(binary.BigEndian.Uint32(data[pos : pos+4]))
+		pos += 4
+	} else {
+		// Palette info: 1-byte flag + 2-byte ncolors + 4-byte transparent + 256*4 palette.
+		if pos+1+2+4+256*4 > len(data) {
+			return nil, errors.New("gogd: GD2 palette header truncated")
+		}
+		pos++ // skip truecolor flag (should be 0)
+		nColors := int(binary.BigEndian.Uint16(data[pos : pos+2]))
+		pos += 2
+		transparent = int32(binary.BigEndian.Uint32(data[pos : pos+4]))
+		pos += 4
+		palette = make([]color.NRGBA, nColors)
+		for i := 0; i < 256; i++ {
+			entry := data[pos : pos+4]
+			if i < nColors {
+				palette[i] = color.NRGBA{R: entry[0], G: entry[1], B: entry[2], A: gdAlphaToStdAlpha(int(entry[3]))}
+			}
+			pos += 4
+		}
+	}
+
+	// Gather the raw pixel bytes (decompress chunks if necessary).
+	bpp := 1
+	if truecolor {
+		bpp = 4
+	}
+	pixels := make([]byte, width*height*bpp)
+
+	if compressed {
+		// Chunk index table: nChunksX * nChunksY entries of (offset, size) as int32 BE.
+		tableBytes := nChunksX * nChunksY * 8
+		if pos+tableBytes > len(data) {
+			return nil, errors.New("gogd: GD2 chunk index truncated")
+		}
+		type chunk struct{ offset, size int }
+		chunks := make([]chunk, nChunksX*nChunksY)
+		for i := range chunks {
+			chunks[i].offset = int(binary.BigEndian.Uint32(data[pos : pos+4]))
+			chunks[i].size = int(binary.BigEndian.Uint32(data[pos+4 : pos+8]))
+			pos += 8
+		}
+		for cy := 0; cy < nChunksY; cy++ {
+			for cx := 0; cx < nChunksX; cx++ {
+				ci := cy*nChunksX + cx
+				off, sz := chunks[ci].offset, chunks[ci].size
+				if off < 0 || sz <= 0 || off+sz > len(data) {
+					return nil, fmt.Errorf("gogd: GD2 chunk %d offset/size out of range", ci)
+				}
+				zr, err := zlib.NewReader(bytes.NewReader(data[off : off+sz]))
+				if err != nil {
+					return nil, fmt.Errorf("gogd: GD2 chunk %d zlib: %w", ci, err)
+				}
+				raw, err := io.ReadAll(zr)
+				zr.Close()
+				if err != nil {
+					return nil, fmt.Errorf("gogd: GD2 chunk %d read: %w", ci, err)
+				}
+				// Paste the chunk into the pixel buffer.
+				x0 := cx * chunkSize
+				y0 := cy * chunkSize
+				cw := chunkSize
+				if x0+cw > width {
+					cw = width - x0
+				}
+				ch := chunkSize
+				if y0+ch > height {
+					ch = height - y0
+				}
+				for row := 0; row < ch; row++ {
+					srcOff := row * chunkSize * bpp
+					dstOff := ((y0+row)*width + x0) * bpp
+					copy(pixels[dstOff:dstOff+cw*bpp], raw[srcOff:srcOff+cw*bpp])
+				}
+			}
+		}
+	} else {
+		if pos+len(pixels) > len(data) {
+			return nil, errors.New("gogd: GD2 raw pixel data truncated")
+		}
+		copy(pixels, data[pos:pos+len(pixels)])
+	}
+
+	if truecolor {
+		img := ImageCreateTrueColor(width, height)
+		ImageAlphaBlending(img, false)
+		for y := 0; y < height; y++ {
+			for x := 0; x < width; x++ {
+				off := (y*width + x) * 4
+				img.nrgba.SetNRGBA(x, y, color.NRGBA{
+					R: pixels[off+1],
+					G: pixels[off+2],
+					B: pixels[off+3],
+					A: gdAlphaToStdAlpha(int(pixels[off])),
+				})
+			}
+		}
+		if transparent >= 0 {
+			img.transparent = Color(transparent)
+		}
+		ImageAlphaBlending(img, true)
+		return img, nil
+	}
+
+	img := ImageCreate(width, height)
+	for _, pc := range palette {
+		img.pal.Palette = append(img.pal.Palette, pc)
+	}
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			img.pal.SetColorIndex(x, y, pixels[y*width+x])
+		}
+	}
+	if transparent >= 0 {
+		img.transparent = Color(transparent)
+	}
+	return img, nil
 }
 
 func writeGDPalette(w io.Writer, img *Image, width, height int) error {
