@@ -62,7 +62,9 @@ Decoders and encoders via stdlib + `golang.org/x/image`.
 - [x] `imagesetstyle` (+ `ColorStyled`/`ColorTransparent` sentinels)
 - [x] `imagesetbrush` (+ `ColorBrushed` stamping in ImageLine)
 - [x] `imagesettile` (+ `ColorTiled` in filled rectangle and flood fill)
-- [x] `imageantialias` (flag only; actual AA not yet implemented)
+- [x] `imageantialias` — wires to Xiaolin Wu's algorithm in ImageLine
+  (and transitively in polygons). Axis-aligned lines and thick lines
+  still use Bresenham; thick AA is pending.
 - [x] `imagesetclip`, `imagegetclip`
 
 ## M4 — Copy / transform / scale `[x]`

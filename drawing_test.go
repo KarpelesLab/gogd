@@ -257,6 +257,70 @@ func TestClip(t *testing.T) {
 	}
 }
 
+func TestAntialiasedDiagonalLine(t *testing.T) {
+	img := ImageCreateTrueColor(20, 20)
+	ImageAlphaBlending(img, false)
+	black := ImageColorAllocate(img, 0, 0, 0)
+	_ = black
+	ImageAntialias(img, true)
+	red := ImageColorAllocate(img, 255, 0, 0)
+	ImageLine(img, 1, 1, 18, 18, red)
+
+	// On a non-axis-aligned line Wu should produce partial-intensity
+	// pixels somewhere along the way. Bresenham would produce only
+	// full-red or untouched-black pixels.
+	partial := 0
+	for y := 0; y < 20; y++ {
+		for x := 0; x < 20; x++ {
+			r, _, _, _ := ImageColorsForIndex(img, ImageColorAt(img, x, y))
+			if r > 0 && r < 240 {
+				partial++
+			}
+		}
+	}
+	if partial == 0 {
+		t.Error("expected some partial-intensity pixels from AA; got none")
+	}
+	// Pixels on the exact diagonal should still be nearly full red.
+	r, _, _, _ := ImageColorsForIndex(img, ImageColorAt(img, 10, 10))
+	if r < 200 {
+		t.Errorf("on-line pixel too dim: r=%d", r)
+	}
+}
+
+func TestAntialiasedHorizontalUnchanged(t *testing.T) {
+	// Horizontal lines have zero gradient; Wu reduces to full-coverage
+	// pixels along the row, producing results indistinguishable from
+	// Bresenham for axis-aligned lines.
+	img := ImageCreateTrueColor(10, 4)
+	ImageAlphaBlending(img, false)
+	black := ImageColorAllocate(img, 0, 0, 0)
+	_ = black
+	ImageAntialias(img, true)
+	red := ImageColorAllocate(img, 255, 0, 0)
+	ImageLine(img, 0, 1, 9, 1, red)
+	for x := 0; x < 10; x++ {
+		r, _, _, _ := ImageColorsForIndex(img, ImageColorAt(img, x, 1))
+		if r != 255 {
+			t.Errorf("horizontal AA x=%d r=%d (should be 255)", x, r)
+		}
+	}
+}
+
+func TestAntialiasRespectsClip(t *testing.T) {
+	img := ImageCreateTrueColor(20, 20)
+	ImageAlphaBlending(img, false)
+	ImageAntialias(img, true)
+	ImageSetClip(img, 5, 5, 14, 14)
+	red := ImageColorAllocate(img, 255, 0, 0)
+	ImageLine(img, 0, 0, 19, 19, red)
+	// Pixels outside the clip rect should remain untouched.
+	r, _, _, _ := ImageColorsForIndex(img, ImageColorAt(img, 1, 1))
+	if r != 0 {
+		t.Errorf("pixel outside clip was touched: r=%d", r)
+	}
+}
+
 func TestSetTileFilledRectangle(t *testing.T) {
 	tile := ImageCreateTrueColor(2, 2)
 	ImageAlphaBlending(tile, false)

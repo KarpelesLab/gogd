@@ -2,6 +2,7 @@ package gogd
 
 import (
 	"image"
+	"image/color"
 	"image/draw"
 	"math"
 )
@@ -156,14 +157,23 @@ func (img *Image) writeColor(x, y int, c Color) {
 
 // --- lines ---
 
-// ImageLine draws a line from (x1, y1) to (x2, y2) using Bresenham's
-// algorithm, respecting the current thickness and clip rectangle.
-// Accepts any [draw.Image]; state (thickness, clip) is taken from
-// gogd's *Image or defaults to 1 / whole image otherwise.
+// ImageLine draws a line from (x1, y1) to (x2, y2). When the image's
+// antialias flag is set and thickness is 1, Xiaolin Wu's algorithm is
+// used for smooth edges; otherwise Bresenham is used, respecting the
+// current thickness and clip rectangle. Accepts any [draw.Image];
+// state (thickness, clip, antialias) is taken from gogd's *Image or
+// defaults to 1 / whole image / off otherwise.
 func ImageLine(dst draw.Image, x1, y1, x2, y2 int, c Color) bool {
 	img := asImage(dst)
 	if img == nil {
 		return false
+	}
+	// Antialiased path (Wu). Skipped for thick lines (AA thick lines
+	// require a different algorithm), axis-aligned lines (no gradient
+	// to smooth — Bresenham is cleaner), and special color sentinels.
+	if img.antialias && img.thickness <= 1 && c >= 0 && x1 != x2 && y1 != y2 {
+		drawWuLine(img, float64(x1), float64(y1), float64(x2), float64(y2), c)
+		return true
 	}
 	dx, dy := iabs(x2-x1), -iabs(y2-y1)
 	sx, sy := 1, 1
@@ -251,6 +261,99 @@ func tileFillRect(img *Image, r image.Rectangle) bool {
 		}
 	}
 	return true
+}
+
+// plotAA writes an antialiased pixel: the source color c is composited
+// over the existing pixel with alpha scaled by intensity (0..1). Alpha
+// blending is forced on regardless of the image's alphaBlending flag,
+// since AA's intensity is itself an alpha modulation. Palette images
+// degrade to a simple threshold because they can't express partial
+// coverage without extending the palette.
+func (img *Image) plotAA(x, y int, c Color, intensity float64) {
+	if !(image.Point{X: x, Y: y}).In(img.clipRect()) {
+		return
+	}
+	if intensity <= 0 {
+		return
+	}
+	if intensity > 1 {
+		intensity = 1
+	}
+	src := gdColorToNRGBA(c)
+	src.A = uint8(float64(src.A) * intensity)
+	if img.nrgba != nil {
+		img.nrgba.SetNRGBA(x, y, blendNRGBA(img.nrgba.NRGBAAt(x, y), src))
+		return
+	}
+	if img.pal != nil {
+		if intensity > 0.5 && int(c) >= 0 && int(c) < len(img.pal.Palette) {
+			img.pal.SetColorIndex(x, y, uint8(c))
+		}
+		return
+	}
+	if img.generic != nil {
+		dst := color.NRGBAModel.Convert(img.generic.At(x, y)).(color.NRGBA)
+		img.generic.Set(x, y, blendNRGBA(dst, src))
+	}
+}
+
+// drawWuLine rasterises an antialiased line using Xiaolin Wu's
+// algorithm (1991). Endpoints are rounded to the nearest pixel and the
+// first/last columns receive an xgap-modulated intensity so sub-pixel
+// endpoint positions still antialias smoothly.
+func drawWuLine(img *Image, x0, y0, x1, y1 float64, c Color) {
+	steep := math.Abs(y1-y0) > math.Abs(x1-x0)
+	if steep {
+		x0, y0 = y0, x0
+		x1, y1 = y1, x1
+	}
+	if x0 > x1 {
+		x0, x1 = x1, x0
+		y0, y1 = y1, y0
+	}
+	dx := x1 - x0
+	gradient := 1.0
+	if dx != 0 {
+		gradient = (y1 - y0) / dx
+	}
+
+	plot := func(x, y int, coverage float64) {
+		if steep {
+			img.plotAA(y, x, c, coverage)
+		} else {
+			img.plotAA(x, y, c, coverage)
+		}
+	}
+
+	// First endpoint.
+	xend := math.Round(x0)
+	yend := y0 + gradient*(xend-x0)
+	xgap := 1 - fracPart(x0+0.5)
+	xpxl1 := int(xend)
+	ypxl1 := int(math.Floor(yend))
+	plot(xpxl1, ypxl1, (1-fracPart(yend))*xgap)
+	plot(xpxl1, ypxl1+1, fracPart(yend)*xgap)
+	intery := yend + gradient
+
+	// Second endpoint.
+	xend = math.Round(x1)
+	yend = y1 + gradient*(xend-x1)
+	xgap = fracPart(x1 + 0.5)
+	xpxl2 := int(xend)
+	ypxl2 := int(math.Floor(yend))
+	plot(xpxl2, ypxl2, (1-fracPart(yend))*xgap)
+	plot(xpxl2, ypxl2+1, fracPart(yend)*xgap)
+
+	// Main loop.
+	for x := xpxl1 + 1; x < xpxl2; x++ {
+		plot(x, int(math.Floor(intery)), 1-fracPart(intery))
+		plot(x, int(math.Floor(intery))+1, fracPart(intery))
+		intery += gradient
+	}
+}
+
+func fracPart(v float64) float64 {
+	return v - math.Floor(v)
 }
 
 // stampBrush paints the brush image centred at (cx, cy).
