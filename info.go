@@ -14,7 +14,7 @@ func GDInfo() map[string]any {
 		"WBMP Support":                     false,
 		"XPM Support":                      false,
 		"XBM Support":                      false,
-		"WebP Support":                     true, // decode only for now
+		"WebP Support":                     true,
 		"AVIF Support":                     false,
 		"BMP Support":                      true,
 		"TGA Read Support":                 false,

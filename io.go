@@ -10,9 +10,14 @@ import (
 	"image/png"
 	"io"
 
+	"github.com/KarpelesLab/gowebp"
 	"golang.org/x/image/bmp"
 	"golang.org/x/image/webp"
 )
+
+// WebPLossless is the quality sentinel for [ImageWEBP] that selects
+// lossless (VP8L) encoding — the same value as PHP's IMG_WEBP_LOSSLESS.
+const WebPLossless = 101
 
 // errNilImage is returned by encoders when passed a nil *Image.
 var errNilImage = errors.New("gogd: nil image")
@@ -75,6 +80,34 @@ func ImageBMP(img image.Image, w io.Writer) error {
 		return errNilImage
 	}
 	return bmp.Encode(w, img)
+}
+
+// ImageWEBP writes img to w as WebP. quality selects the encoding mode:
+//
+//   - -1: default (lossy at quality 80)
+//   - 0..100: lossy VP8 at that quality level (higher = larger, better-looking)
+//   - [WebPLossless] (101): lossless VP8L, pixel-perfect
+//
+// Accepts any [image.Image].
+func ImageWEBP(img image.Image, w io.Writer, quality int) error {
+	if img == nil {
+		return errNilImage
+	}
+	opts := &gowebp.Options{Method: 4}
+	switch {
+	case quality < 0:
+		opts.Lossy = true
+		opts.Quality = 80
+	case quality == WebPLossless:
+		opts.Lossy = false
+	case quality > 100:
+		opts.Lossy = true
+		opts.Quality = 100
+	default:
+		opts.Lossy = true
+		opts.Quality = float32(quality)
+	}
+	return gowebp.Encode(w, img, opts)
 }
 
 // ImageCreateFromPNG decodes a PNG image from r.

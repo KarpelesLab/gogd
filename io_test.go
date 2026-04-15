@@ -218,6 +218,92 @@ func TestImageTypesReportsSupported(t *testing.T) {
 	}
 }
 
+func TestWEBPLossyRoundtrip(t *testing.T) {
+	src := ImageCreateTrueColor(16, 16)
+	ImageAlphaBlending(src, false)
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 16; x++ {
+			c := ImageColorAllocate(src, x*16, y*16, 128)
+			ImageSetPixel(src, x, y, c)
+		}
+	}
+	var buf bytes.Buffer
+	if err := ImageWEBP(src, &buf, 90); err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	if buf.Len() == 0 {
+		t.Fatal("empty WebP output")
+	}
+	back, err := ImageCreateFromWEBP(&buf)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if back.Width() != 16 || back.Height() != 16 {
+		t.Errorf("size = %dx%d", back.Width(), back.Height())
+	}
+	// Lossy encoding → allow a generous error margin.
+	sr, sg, sb, _ := ImageColorsForIndex(src, ImageColorAt(src, 8, 8))
+	dr, dg, db, _ := ImageColorsForIndex(back, ImageColorAt(back, 8, 8))
+	if abs8(sr-dr) > 20 || abs8(sg-dg) > 20 || abs8(sb-db) > 20 {
+		t.Errorf("(8,8) src=%d,%d,%d back=%d,%d,%d", sr, sg, sb, dr, dg, db)
+	}
+}
+
+func TestWEBPLosslessRoundtrip(t *testing.T) {
+	src := ImageCreateTrueColor(8, 8)
+	ImageAlphaBlending(src, false)
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			c := ImageColorAllocate(src, x*30, y*30, 255-x*30)
+			ImageSetPixel(src, x, y, c)
+		}
+	}
+	var buf bytes.Buffer
+	if err := ImageWEBP(src, &buf, WebPLossless); err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	back, err := ImageCreateFromWEBP(&buf)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			sr, sg, sb, _ := ImageColorsForIndex(src, ImageColorAt(src, x, y))
+			dr, dg, db, _ := ImageColorsForIndex(back, ImageColorAt(back, x, y))
+			if sr != dr || sg != dg || sb != db {
+				t.Errorf("(%d,%d) lossy drift on lossless: src=%d,%d,%d back=%d,%d,%d",
+					x, y, sr, sg, sb, dr, dg, db)
+			}
+		}
+	}
+}
+
+func TestWEBPDefaultQuality(t *testing.T) {
+	img := ImageCreateTrueColor(4, 4)
+	var buf bytes.Buffer
+	// quality -1 should use the lossy default without erroring.
+	if err := ImageWEBP(img, &buf, -1); err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	if buf.Len() == 0 {
+		t.Fatal("empty output")
+	}
+}
+
+func TestWEBPNilImage(t *testing.T) {
+	var buf bytes.Buffer
+	if err := ImageWEBP(nil, &buf, 80); err == nil {
+		t.Error("expected error for nil image")
+	}
+}
+
+func abs8(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
 func TestImageInterlace(t *testing.T) {
 	img := ImageCreateTrueColor(2, 2)
 	if got := ImageInterlace(img); got != 0 {
