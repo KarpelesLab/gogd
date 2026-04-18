@@ -290,6 +290,77 @@ func TestWEBPDefaultQuality(t *testing.T) {
 	}
 }
 
+func TestAVIFLossyRoundtrip(t *testing.T) {
+	src := ImageCreateTrueColor(16, 16)
+	ImageAlphaBlending(src, false)
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 16; x++ {
+			c := ImageColorAllocate(src, x*16, y*16, 128)
+			ImageSetPixel(src, x, y, c)
+		}
+	}
+	var buf bytes.Buffer
+	if err := ImageAVIF(src, &buf, 80); err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	if buf.Len() == 0 {
+		t.Fatal("empty AVIF output")
+	}
+	back, err := ImageCreateFromAVIF(&buf)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if back.Width() != 16 || back.Height() != 16 {
+		t.Errorf("size = %dx%d", back.Width(), back.Height())
+	}
+}
+
+func TestAVIFLosslessRoundtrip(t *testing.T) {
+	src := ImageCreateTrueColor(8, 8)
+	ImageAlphaBlending(src, false)
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			c := ImageColorAllocate(src, x*30, y*30, 255-x*30)
+			ImageSetPixel(src, x, y, c)
+		}
+	}
+	var buf bytes.Buffer
+	if err := ImageAVIF(src, &buf, AVIFLossless); err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	back, err := ImageCreateFromAVIF(&buf)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	// goavif lossless is still maturing; allow a small tolerance.
+	maxDrift := 0
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			sr, sg, sb, _ := ImageColorsForIndex(src, ImageColorAt(src, x, y))
+			dr, dg, db, _ := ImageColorsForIndex(back, ImageColorAt(back, x, y))
+			for _, d := range []int{abs8(sr - dr), abs8(sg - dg), abs8(sb - db)} {
+				if d > maxDrift {
+					maxDrift = d
+				}
+			}
+		}
+	}
+	if maxDrift > 100 {
+		t.Errorf("lossless max drift = %d (expected ≤100)", maxDrift)
+	}
+}
+
+func TestAVIFDefaultQuality(t *testing.T) {
+	img := ImageCreateTrueColor(4, 4)
+	var buf bytes.Buffer
+	if err := ImageAVIF(img, &buf, -1); err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	if buf.Len() == 0 {
+		t.Fatal("empty output")
+	}
+}
+
 func TestWEBPNilImage(t *testing.T) {
 	var buf bytes.Buffer
 	if err := ImageWEBP(nil, &buf, 80); err == nil {

@@ -181,6 +181,8 @@ func formatToImageType(format string) int {
 		return ImageTypeBMP
 	case "webp":
 		return ImageTypeWEBP
+	case "avif":
+		return ImageTypeAVIF
 	}
 	return ImageTypeUnknown
 }

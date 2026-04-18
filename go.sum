@@ -1,3 +1,5 @@
+github.com/KarpelesLab/goavif v0.1.0 h1:CJ5go0sQPjpfNL0E7Zzgn/IMi5ppv/gd1oy4URU2+j4=
+github.com/KarpelesLab/goavif v0.1.0/go.mod h1:JvXzaymMyoNY+cWkJhMLM1f89NM2+4cYaYOz2P5vgO8=
 github.com/KarpelesLab/gowebp v0.1.1 h1:W11ZrRVx+Zk4ypW5NBEU31FQzghICXIrAbAbO5yd4M0=
 github.com/KarpelesLab/gowebp v0.1.1/go.mod h1:Js8OXPQ94yl94HqaO/9XuUqk0wOPod6uycryhzmTgsU=
 golang.org/x/image v0.39.0 h1:skVYidAEVKgn8lZ602XO75asgXBgLj9G/FE3RbuPFww=

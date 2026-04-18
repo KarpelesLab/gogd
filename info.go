@@ -15,7 +15,7 @@ func GDInfo() map[string]any {
 		"XPM Support":                      false,
 		"XBM Support":                      false,
 		"WebP Support":                     true,
-		"AVIF Support":                     false,
+		"AVIF Support":                     true,
 		"BMP Support":                      true,
 		"TGA Read Support":                 false,
 		"JIS-mapped Japanese Font Support": false,
@@ -25,5 +25,5 @@ func GDInfo() map[string]any {
 // ImageTypes returns the bitfield of image formats gogd can read or
 // write. Matches PHP's imagetypes() return value.
 func ImageTypes() int {
-	return ImgGIF | ImgJPEG | ImgPNG | ImgBMP | ImgWEBP
+	return ImgGIF | ImgJPEG | ImgPNG | ImgBMP | ImgWEBP | ImgAVIF
 }

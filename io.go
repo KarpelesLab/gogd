@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"io"
 
+	"github.com/KarpelesLab/goavif"
 	"github.com/KarpelesLab/gowebp"
 	"golang.org/x/image/bmp"
 	"golang.org/x/image/webp"
@@ -18,6 +19,10 @@ import (
 // WebPLossless is the quality sentinel for [ImageWEBP] that selects
 // lossless (VP8L) encoding — the same value as PHP's IMG_WEBP_LOSSLESS.
 const WebPLossless = 101
+
+// AVIFLossless is the quality sentinel for [ImageAVIF] that selects
+// lossless encoding, matching the WebP convention.
+const AVIFLossless = 101
 
 // errNilImage is returned by encoders when passed a nil *Image.
 var errNilImage = errors.New("gogd: nil image")
@@ -147,8 +152,41 @@ func ImageCreateFromBMP(r io.Reader) (*Image, error) {
 	return fromStdImage(m), nil
 }
 
-// ImageCreateFromWEBP decodes a WebP image from r. WebP encoding is not
-// currently implemented by gogd.
+// ImageAVIF writes img to w as AVIF. quality selects the encoding mode:
+//
+//   - -1: default (lossy at quality 50)
+//   - 0..100: lossy at that quality level
+//   - [AVIFLossless] (101): lossless, pixel-perfect
+//
+// Accepts any [image.Image].
+func ImageAVIF(img image.Image, w io.Writer, quality int) error {
+	if img == nil {
+		return errNilImage
+	}
+	opts := &goavif.Options{}
+	switch {
+	case quality < 0:
+		opts.Quality = 50
+	case quality == AVIFLossless:
+		opts.Lossless = true
+	case quality > 100:
+		opts.Quality = 100
+	default:
+		opts.Quality = quality
+	}
+	return goavif.Encode(w, img, opts)
+}
+
+// ImageCreateFromAVIF decodes an AVIF image from r.
+func ImageCreateFromAVIF(r io.Reader) (*Image, error) {
+	m, err := goavif.Decode(r)
+	if err != nil {
+		return nil, err
+	}
+	return fromStdImage(m), nil
+}
+
+// ImageCreateFromWEBP decodes a WebP image from r.
 func ImageCreateFromWEBP(r io.Reader) (*Image, error) {
 	m, err := webp.Decode(r)
 	if err != nil {

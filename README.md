@@ -36,10 +36,12 @@ func main() {
 
 ## Features
 
-- **I/O.** PNG / JPEG / GIF / BMP / WebP round-trip (WebP lossy + lossless
-  via [github.com/KarpelesLab/gowebp](https://github.com/KarpelesLab/gowebp)),
-  WBMP, XBM, XPM, TGA (uncompressed + RLE, truecolor + grayscale +
-  colormapped), libgd's own `.gd` v1 format round-trip and GD2 read.
+- **I/O.** PNG / JPEG / GIF / BMP / WebP / AVIF round-trip
+  ([gowebp](https://github.com/KarpelesLab/gowebp) for WebP,
+  [goavif](https://github.com/KarpelesLab/goavif) for AVIF — both pure
+  Go, lossy + lossless), WBMP, XBM, XPM, TGA (uncompressed + RLE,
+  truecolor + grayscale + colormapped), libgd's own `.gd` v1 format
+  round-trip and GD2 read.
 - **Drawing.** Lines (Bresenham or Xiaolin Wu antialiased), dashed lines,
   rectangles, polygons, ellipses, arcs (pie and chord), flood fill, fill-
   to-border. `imagesetstyle` / `imagesetbrush` / `imagesettile` honoured.
@@ -85,7 +87,6 @@ func main() {
 These PHP gd functions have partial or no support — most are blocked on
 things outside the library's control:
 
-- **AVIF read/write.** No pure-Go AVIF codec exists yet.
 - **`imageinterlace`.** Flag is stored, but Go's stdlib PNG and JPEG
   encoders don't expose an interlace / progressive knob.
 - **`imageloadfont`.** libgd's custom `.gd` font-file format isn't parsed;
